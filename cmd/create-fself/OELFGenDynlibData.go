@@ -8,10 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
-	"fmt"
 )
 
 // Const nidSuffixKey holds the suffix appended to the end of symbol names before calculating the NID hash.
@@ -113,11 +113,11 @@ var (
 ////
 
 func OpenLibrary(name string) (*elf.File, error) {
-	libDirs := append([]string{sdkPath+"/lib"}, strings.Split(libPath, ":")...)
+	libDirs := append([]string{sdkPath + "/lib"}, strings.Split(libPath, ":")...)
 	var err error
 	var lib *elf.File
 	for _, libDir := range libDirs {
-		lib, err = elf.Open(libDir+"/"+name)
+		lib, err = elf.Open(libDir + "/" + name)
 		if err == nil {
 			return lib, nil
 		}

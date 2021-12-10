@@ -86,7 +86,8 @@ func main() {
 	// Set the SDK version for overwriting .sce_process_param later on
 	sdkVer := *sdkVerPtr
 	libPath = *libPathPtr
-	if libPath == "" {}
+	if libPath == "" {
+	}
 
 	inputFilePath := *inputFilePathPtr
 	outputFilePath := *outputFilePathPtr
