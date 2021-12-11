@@ -1,4 +1,5 @@
 # Tool Documentation (create-fself)
+[![Release](https://img.shields.io/github/release/golang-standards/project-layout.svg?style=flat-square)](https://github.com/OpenOrbis/create-fself/releases/latest)
 
 ## Summary
 `create-fself` can be used to take 64-bit ELF files and produce **f**ake **S**igned **ELF**s that can be used on the PlayStation 4 (PS4). This includes `eboot.bin` files and Playstation Relocatable eXecutable (PRX) library files.
