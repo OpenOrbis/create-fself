@@ -53,5 +53,5 @@ jobs:
     - name: Upload macOS version
       uses: actions/upload-artifact@v2
       with:
-        name: create-fself
+        name: create-fself-macos
         path: build/create-fself-macos
