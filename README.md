@@ -43,6 +43,18 @@ Usage of create-fself:
         SDK version integer (default 72384769)
 ```
 
+### Example Usage
+
+**Game:**
+```
+./create-fself -in input.elf --out debug.oelf --eboot "eboot.bin" --paid 0x3800000000000011
+```
+
+**Library:**
+```
+./create-fself -in input.elf --out debug.oelf --lib "lib.prx"
+```
+
 ## Architecture
 
 **cmd/create-fself/**
