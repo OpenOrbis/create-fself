@@ -58,7 +58,7 @@ Usage of create-fself:
 ## Architecture
 
 **cmd/create-fself/**
-Tool main application code.
+- Tool main application code.
 
 **pkg/oelf/**
 - Everything related to parsing and building Orbis ELFs (OELFs). These OELFs are not the final product, but an intermediate
