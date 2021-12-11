@@ -1,7 +1,7 @@
 // This file is a port of flatz' make_fself.py script. Without him this file wouldn't be here.
 // Credit for all the fself research goes to flatz :)
 
-package main
+package fself
 
 import (
 	"bytes"
@@ -11,134 +11,46 @@ import (
 	"encoding/hex"
 	"os"
 	"strconv"
-	"strings"
 )
 
-// Default block size
-const BLOCK_SIZE = 0x4000
+// _selfEntries contains a list of SelfEntryInfo objects so they can be iterated easily.
+var _selfEntries []*SelfEntryInfo
 
-// Magic constants
-const SELF_MAGIC_SELF = 0x1D3D154F
-const SELF_CONTROL_BLOCK_TYPE_NPDRM = 0x3
-
-// Modes
-const SELF_MODE_SPECIFICUSER = 0x1
-
-// Endianness / byte order types
-const SELF_DATA_LSB = 0x1
-
-// Property bit shifts
-const SELF_ENTRY_PROPERTY_BIT_SIGNED = 2
-const SELF_ENTRY_PROPERTY_BIT_HASBLOCKS = 11
-const SELF_ENTRY_PROPERTY_BIT_BLOCKSIZE = 12
-const SELF_ENTRY_PROPERTY_BIT_HASDIGESTS = 16
-const SELF_ENTRY_PROPERTY_BIT_SEGMENT_INDEX = 20
-
-// Struct sizes
-const SELF_HEADER_SIZE = 0x20
-const SELF_ENTRY_SIZE = 0x50
-const SELF_ELF_HEADER_SIZE = 0x40
-const SELF_ELF_PROGHEADER_SIZE = 0x38
-const SELF_EXTENDED_HEADER_SIZE = 0x40
-const SELF_META_FOOTER_SIZE = 0x50
-const SELF_NPDRM_BLOCK_SIZE = 0x30
-const SELF_META_BLOCK_SIZE = 0x50
-const SELF_META_DATA_BLOCK_SIZE = 0x20
-const SELF_SIGNATURE_SIZE = 0x100
-
-const SELF_PTYPE_FAKE = 0x1
-const SELF_PTYPE_NPDRM_EXEC = 0x4
-const SELF_PTYPE_NPDRM_DYNLIB = 0x5
-const SELF_PTYPE_SYSTEM_EXEC = 0x8
-const SELF_PTYPE_SYSTEM_DYNLIB = 0x9
-const SELF_PTYPE_HOST_KERNEL = 0xC
-const SELF_PTYPE_SECURE_MODULE = 0xE
-const SELF_PTYPE_SECURE_KERNEL = 0xF
-
-// Struct SelfHeader is the SELF file header structure.
-type SelfHeader struct {
-	Magic      uint32
-	Version    uint8
-	Mode       uint8
-	Endian     uint8
-	Attributes uint8
-	KeyType    uint32
-	HeaderSize uint16
-	MetaSize   uint16
-	FileSize   uint64
-	NumEntries uint16
-	Flags      uint16
-}
-
-// Struct SelfEntry is the SELF entry structure, which contains metadata information. There are usually two per segment.
-type SelfEntry struct {
-	Properties uint64
-	Offset     uint64
-	FileSize   uint64
-	MemorySize uint64
-}
-
-// Struct SelfEntryInfo is similar to SelfEntry, however it contains a Data field to keep track of segment data.
-type SelfEntryInfo struct {
-	Properties uint64
-	Offset     uint64
-	FileSize   uint64
-	MemorySize uint64
-	Data       *[]byte
-}
-
-// Struct SelfNpdrmControlBlock contains the structure for the NPDRM control blow, which includes the type and content ID
-type SelfNpdrmControlBlock struct {
-	Type      uint16
-	Unknown   [0x0E]byte
-	ContentID [0x13]byte
-	RandomPad [0x0D]byte
-}
-
-// Struct SelfExtendedInfo contains app-specific information about the SELF, including the paid type, app type, app/fw
-// version, and the sha256 digest.
-type SelfExtendedInfo struct {
-	Paid       uint64
-	Type       uint64
-	AppVersion uint64
-	FwVersion  uint64
-	Digest     [0x20]byte
-}
-
-// SelfEntries contains a list of SelfEntryInfo objects so they can be iterated easily.
-var SelfEntries []*SelfEntryInfo
-
-// createFself takes a given orbis ELF path, as well as various meta-data parameters, to create an fself for the final
+// CreateFSELF takes a given orbis ELF path, as well as various meta-data parameters, to create an fself for the final
 // eboot. Returns error if an issue was encountered in creating the fself, nil otherwise.
-func createFself(orbisElfPath string, paid int64, pType string, appVersion int64, fwVersion int64, authInfo string) {
+func CreateFSELF(isLib bool, orbisElfPath string, outputPath string, paid int64, pType string, appVersion int64, fwVersion int64, authInfo string) error {
 	inputFileBuff := new(bytes.Buffer)
 
 	// Get the file data for getting the digest as well as other parsing
 	inputElfFile, err := os.Open(orbisElfPath)
-	check(err)
+	if err != nil {
+		return err
+	}
 
 	_, err = inputFileBuff.ReadFrom(inputElfFile)
-	check(err)
+	if err != nil {
+		return err
+	}
 
 	err = inputElfFile.Close()
-	check(err)
+	if err != nil {
+		return err
+	}
 
 	// Calculate the sha256 digest so we can put it in the extended info header
 	sha256Digest := sha256.Sum256(inputFileBuff.Bytes())
 
 	// Open the file as an ELF for parsing
 	inputElf, err := elf.Open(orbisElfPath)
-	check(err)
-
-	// Open the output file to write to
-	outputFilePath := "eboot.bin"
-
-	if TOOL_MODE == "SPRX" {
-		outputFilePath = strings.Split(orbisElfPath, ".")[0] + ".prx"
+	if err != nil {
+		return err
 	}
 
-	outputFself, err := os.Create(outputFilePath)
-	check(err)
+	// Open the output file to write to
+	outputFself, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
 
 	signature := make([]byte, SELF_SIGNATURE_SIZE)
 
@@ -159,7 +71,7 @@ func createFself(orbisElfPath string, paid int64, pType string, appVersion int64
 
 	// Process segments
 	entryIndex := 0
-	offset := uint64(headerSize) + uint64((len(SelfEntries)*SELF_ENTRY_SIZE)+SELF_META_FOOTER_SIZE+SELF_SIGNATURE_SIZE)
+	offset := uint64(headerSize) + uint64((len(_selfEntries)*SELF_ENTRY_SIZE)+SELF_META_FOOTER_SIZE+SELF_SIGNATURE_SIZE)
 
 	for _, prog := range inputElf.Progs {
 		// Skip non-load and non-sce related segments
@@ -171,26 +83,28 @@ func createFself(orbisElfPath string, paid int64, pType string, appVersion int64
 		numBlocks := align(prog.Filesz, BLOCK_SIZE) / BLOCK_SIZE
 		metaData := make([]byte, SELF_META_DATA_BLOCK_SIZE*numBlocks)
 
-		SelfEntries[entryIndex].Data = &metaData
-		SelfEntries[entryIndex].Offset = offset
-		SelfEntries[entryIndex].FileSize = uint64(len(metaData))
-		SelfEntries[entryIndex].MemorySize = uint64(len(metaData))
+		_selfEntries[entryIndex].Data = &metaData
+		_selfEntries[entryIndex].Offset = offset
+		_selfEntries[entryIndex].FileSize = uint64(len(metaData))
+		_selfEntries[entryIndex].MemorySize = uint64(len(metaData))
 
-		offset += SelfEntries[entryIndex].FileSize
+		offset += _selfEntries[entryIndex].FileSize
 		offset = align(offset, 0x10)
 
 		// Write data block for the segment (segment data)
 		segmentData := make([]byte, prog.Filesz)
 
 		_, err = prog.ReadAt(segmentData, 0)
-		check(err)
+		if err != nil {
+			return err
+		}
 
-		SelfEntries[entryIndex+1].Data = &segmentData
-		SelfEntries[entryIndex+1].Offset = offset
-		SelfEntries[entryIndex+1].FileSize = prog.Filesz
-		SelfEntries[entryIndex+1].MemorySize = prog.Filesz
+		_selfEntries[entryIndex+1].Data = &segmentData
+		_selfEntries[entryIndex+1].Offset = offset
+		_selfEntries[entryIndex+1].FileSize = prog.Filesz
+		_selfEntries[entryIndex+1].MemorySize = prog.Filesz
 
-		offset += SelfEntries[entryIndex+1].FileSize
+		offset += _selfEntries[entryIndex+1].FileSize
 		offset = align(offset, 0x10)
 
 		entryIndex += 2
@@ -227,7 +141,7 @@ func createFself(orbisElfPath string, paid int64, pType string, appVersion int64
 	finalFileSize += writeSegments(outputFself)
 
 	err = outputFself.Close()
-	check(err)
+	return err
 }
 
 // createSelfEntries takes a list of program headers and creates an entry list for them. Empty entries with the expected
@@ -250,7 +164,7 @@ func createSelfEntries(programHeaders []*elf.Prog) int {
 		metaEntryProperties = setProperty(metaEntryProperties, SELF_ENTRY_PROPERTY_BIT_HASDIGESTS, 1, 1)
 		metaEntryProperties = setProperty(metaEntryProperties, SELF_ENTRY_PROPERTY_BIT_SEGMENT_INDEX, 0xFFFF, uint64(entryIndex+1))
 
-		SelfEntries = append(SelfEntries, &SelfEntryInfo{
+		_selfEntries = append(_selfEntries, &SelfEntryInfo{
 			Properties: metaEntryProperties,
 			Offset:     0,
 			FileSize:   0,
@@ -266,7 +180,7 @@ func createSelfEntries(programHeaders []*elf.Prog) int {
 		dataEntryProperties = setProperty(dataEntryProperties, SELF_ENTRY_PROPERTY_BIT_BLOCKSIZE, 0xF, ilog2(BLOCK_SIZE)-12)
 		dataEntryProperties = setProperty(dataEntryProperties, SELF_ENTRY_PROPERTY_BIT_SEGMENT_INDEX, 0xFFFF, uint64(i))
 
-		SelfEntries = append(SelfEntries, &SelfEntryInfo{
+		_selfEntries = append(_selfEntries, &SelfEntryInfo{
 			Properties: dataEntryProperties,
 			Offset:     0,
 			FileSize:   0,
@@ -276,7 +190,7 @@ func createSelfEntries(programHeaders []*elf.Prog) int {
 		entryIndex += 2
 	}
 
-	return len(SelfEntries) * SELF_META_DATA_BLOCK_SIZE
+	return len(_selfEntries) * SELF_META_DATA_BLOCK_SIZE
 }
 
 // createSignature takes the given authinfo and paid parameters and creates a signature for the file. Returns the []byte
@@ -313,9 +227,9 @@ func writeSelfHeader(file *os.File, version uint8, mode uint8, endian uint8, att
 		Attributes: attr,
 		KeyType:    0x101,
 		HeaderSize: headerSize,
-		MetaSize:   uint16((len(SelfEntries) * SELF_ENTRY_SIZE) + SELF_META_FOOTER_SIZE + SELF_SIGNATURE_SIZE),
+		MetaSize:   uint16((len(_selfEntries) * SELF_ENTRY_SIZE) + SELF_META_FOOTER_SIZE + SELF_SIGNATURE_SIZE),
 		FileSize:   fileSize,
-		NumEntries: uint16(len(SelfEntries)),
+		NumEntries: uint16(len(_selfEntries)),
 		Flags:      flags,
 	}
 
@@ -330,7 +244,7 @@ func writeSelfHeader(file *os.File, version uint8, mode uint8, endian uint8, att
 func writeSelfEntries(file *os.File) int {
 	selfEntriesBuff := new(bytes.Buffer)
 
-	for _, entry := range SelfEntries {
+	for _, entry := range _selfEntries {
 		selfEntry := SelfEntry{
 			Properties: entry.Properties,
 			Offset:     entry.Offset,
@@ -429,7 +343,7 @@ func writeNpdrmControlBlock(file *os.File) int {
 // writeMetaBlocks takes a given file and writes a list of MetaBlocks for each SelfEntry to it. Currently, these blocks
 // contain NULL data. Returns the number of bytes written.
 func writeMetaBlocks(file *os.File) int {
-	metaBlocks := make([]byte, SELF_META_BLOCK_SIZE*len(SelfEntries))
+	metaBlocks := make([]byte, SELF_META_BLOCK_SIZE*len(_selfEntries))
 
 	writtenBytes, _ := file.Write(metaBlocks)
 	return writtenBytes
@@ -461,7 +375,7 @@ func writeSignature(file *os.File, signature []byte) int {
 func writeSegments(file *os.File) int {
 	writtenBytes := 0
 
-	for _, entry := range SelfEntries {
+	for _, entry := range _selfEntries {
 		writtenBytesEntry, _ := file.WriteAt(*entry.Data, int64(entry.Offset))
 		writtenBytes += writtenBytesEntry
 	}

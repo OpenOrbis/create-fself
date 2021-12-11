@@ -1,4 +1,4 @@
-package main
+package oelf
 
 import (
 	"bytes"
@@ -8,9 +8,9 @@ import (
 	"os"
 )
 
-// OrbisElf.RewriteELFHeader will overwrite the existing ELF header to be compatible with the PS4's expectations. This
-// includes an adjusted program header count, an ET_SCE_EXEC_ASLR type, and an updated identifier. Returns an error
-// if the write failed, nil otherwise.
+// RewriteELFHeader will overwrite the existing ELF header to be compatible with the PS4's expectations. This includes
+// an adjusted program header count, an ET_SCE_EXEC_ASLR type, and an updated identifier. Returns an error if the write
+// failed, nil otherwise.
 func (orbisElf *OrbisElf) RewriteELFHeader() error {
 	var (
 		inputFile *os.File
@@ -23,7 +23,7 @@ func (orbisElf *OrbisElf) RewriteELFHeader() error {
 	elfType := ET_SCE_EXEC_ASLR
 	elfEntry := orbisElf.ElfToConvert.Entry
 
-	if TOOL_MODE == "SPRX" {
+	if orbisElf.IsLibrary {
 		elfType = ET_SCE_DYNAMIC
 		elfEntry = 0
 	}
@@ -80,13 +80,13 @@ func (orbisElf *OrbisElf) RewriteELFHeader() error {
 	return nil
 }
 
-// OrbisElf.RewriteSDKVersion will overwrite the SDK version magic in .data.sce_process_param with the given argument.
+// RewriteSDKVersion will overwrite the SDK version magic in .data.sce_process_param with the given argument.
 // Returns an error if the write failed, nil otherwise.
 func (orbisElf *OrbisElf) RewriteSDKVersion(sdkVer int) error {
 	sdkVersion := intToByteArray(sdkVer)
 	sectionName := ".data.sce_process_param"
 
-	if TOOL_MODE == "SPRX" {
+	if orbisElf.IsLibrary {
 		sectionName = ".data.sce_module_param"
 	}
 
@@ -105,7 +105,7 @@ func (orbisElf *OrbisElf) RewriteSDKVersion(sdkVer int) error {
 	return err
 }
 
-// OrbisElf.RewriteInterpreter will overwrite the first 0x20 bytes of .text with the given interpreter string. Returns
+// RewriteInterpreter will overwrite the first 0x20 bytes of .text with the given interpreter string. Returns
 // an error if the write failed, nil otherwise.
 func (orbisElf *OrbisElf) RewriteInterpreter(interpreter string) error {
 	interpreterBuff := make([]byte, 0x20)

@@ -1,4 +1,4 @@
-package main
+package oelf
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 
 type programHeaderList []elf.Prog64
 
-// OrbisElf.GenerateProgramHeaders parses the input ELF's section header table to generate fresh new program headers.
+// GenerateProgramHeaders parses the input ELF's section header table to generate fresh new program headers.
 // Returns nil.
 func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	// Get all the necessary sections first
@@ -21,7 +21,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	gotPltSection := orbisElf.ElfToConvert.Section(".got.plt")
 	procParamSection := orbisElf.ElfToConvert.Section(".data.sce_process_param")
 
-	if TOOL_MODE == "SPRX" {
+	if orbisElf.IsLibrary {
 		procParamSection = orbisElf.ElfToConvert.Section(".data.sce_module_param")
 	}
 
@@ -33,7 +33,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	oldTextHeader := orbisElf.getProgramHeader(elf.PT_LOAD, elf.PF_R|elf.PF_X)
 
 	// PT_INTERP - The interpreter string. This will always be at text + 0x00.
-	if TOOL_MODE == "SELF" {
+	if !orbisElf.IsLibrary {
 		interpreterHeader := generateInterpreterHeader(textSection.Offset)
 		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, interpreterHeader)
 	}
@@ -109,16 +109,16 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dataHeader)
 
 	// PT_SCE_PROC_PARAM or PT_SCE_MODULE_PARAM - The SCE process (or module) param segment.
-	procParamHeader := generateSceProcParamHeader(procParamSection.Offset, procParamSection.Addr, procParamSection.Size)
+	procParamHeader := generateSceProcParamHeader(orbisElf.IsLibrary, procParamSection.Offset, procParamSection.Addr, procParamSection.Size)
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, procParamHeader)
 
 	// PT_SCE_DYNLIB_DATA - The SCE dynlib data segment. This contains all the information necessary for the dynamic
 	// linker.
-	dynlibHeader := generateSceDynlibDataHeader(offsetOfDynlibData, sizeOfDynlibData)
+	dynlibHeader := generateSceDynlibDataHeader(_offsetOfDynlibData, _sizeOfDynlibData)
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynlibHeader)
 
 	// PT_DYNAMIC - The dynamic table segment. This segment overlaps partially with PT_SCE_DYNLIB_DATA.
-	dynamicHeader := generateDynamicHeader(offsetOfDynamic, sizeOfDynamic)
+	dynamicHeader := generateDynamicHeader(_offsetOfDynamic, _sizeOfDynamic)
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynamicHeader)
 
 	sort.Sort(programHeaderList(orbisElf.ProgramHeaders))
@@ -257,10 +257,10 @@ func generateDataHeader(offset uint64, virtualAddr uint64, size uint64, memSize 
 
 // generateSceProcParamHeader takes the given offset, virtualAddr, and size to create a new PT_SCE_PROC_PARAM program
 // header. Returns the final program header.
-func generateSceProcParamHeader(offset uint64, virtualAddr uint64, size uint64) elf.Prog64 {
+func generateSceProcParamHeader(isLibrary bool, offset uint64, virtualAddr uint64, size uint64) elf.Prog64 {
 	segmentType := PT_SCE_PROC_PARAM
 
-	if TOOL_MODE == "SPRX" {
+	if isLibrary {
 		segmentType = PT_SCE_MODULE_PARAM
 	}
 
@@ -344,17 +344,17 @@ func getProgramHeaderPriority(progHeaderOrder []elf.ProgType, progType uint32, p
 	return math.MaxInt32
 }
 
-// programHeaderList.Len() is a standard function that just returns the length of the list.
+// Len is a standard function that just returns the length of the list.
 func (s programHeaderList) Len() int {
 	return len(s)
 }
 
-// programHeaderList.Swap() is a standard function that just swaps i and j elements in the list.
+// Swap is a standard function that just swaps i and j elements in the list.
 func (s programHeaderList) Swap(i int, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// programHeaderList.Less() uses the getProgramHeaderPriority() function to sort the list by priority.
+// Less uses the getProgramHeaderPriority() function to sort the list by priority.
 func (s programHeaderList) Less(i int, j int) bool {
 	return getProgramHeaderPriority(progHeaderTypeOrder, s[i].Type, s[i].Flags) < getProgramHeaderPriority(progHeaderTypeOrder, s[j].Type, s[j].Flags)
 }

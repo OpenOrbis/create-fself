@@ -1,9 +1,12 @@
 // This file contains constants that are specific to SCE types. This includes ELF types, program header types, and
 // dynamic table tags.
 
-package main
+package oelf
 
+///
 // SCE-specific ELF types
+///
+
 const ET_SCE_EXEC_ASLR = 0xFE10
 const ET_SCE_DYNAMIC = 0xFE18
 

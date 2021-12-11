@@ -1,4 +1,4 @@
-package main
+package oelf
 
 import (
 	"debug/elf"
@@ -6,11 +6,7 @@ import (
 	"errors"
 )
 
-////
-// OrbisELF specific helper functions
-////
-
-// OrbisElf.getFileOffsetsBySectionName searches the section header table of the input ELF with the given name and
+// getFileOffsetBySectionName searches the section header table of the input ELF with the given name and
 // returns that section's offset as well as error. If the section name does not exist, an offset of 0 and an error is
 // returned. The offset and nil are returned otherwise.
 func (orbisElf *OrbisElf) getFileOffsetBySectionName(name string) (int64, error) {
@@ -23,7 +19,7 @@ func (orbisElf *OrbisElf) getFileOffsetBySectionName(name string) (int64, error)
 	return 0, errors.New("tried to access a non-existent section")
 }
 
-// OrbisElf.getDynamicTag searches the dynamic table of the input ELF with the given tag and returns that tag's value as
+// getDynamicTag searches the dynamic table of the input ELF with the given tag and returns that tag's value as
 // well as error. If the tag does not exist, or if the dynamic table cannot be found, a value of 0 and an error is returned.
 // The value and nil are returned otherwise.
 func (orbisElf *OrbisElf) getDynamicTag(tag elf.DynTag) (uint64, error) {
@@ -56,7 +52,7 @@ func (orbisElf *OrbisElf) getDynamicTag(tag elf.DynTag) (uint64, error) {
 	return 0, nil
 }
 
-// OrbisElf.getSymbol searches the symbol table of the input ELF with the given name and returns the corresponding elf.Symbol
+// getSymbol searches the symbol table of the input ELF with the given name and returns the corresponding elf.Symbol
 // object. If the symbol does not exist, an empty elf.Symbol object is returned.
 func (orbisElf *OrbisElf) getSymbol(name string) elf.Symbol {
 	symbols, _ := orbisElf.ElfToConvert.Symbols()
@@ -70,7 +66,7 @@ func (orbisElf *OrbisElf) getSymbol(name string) elf.Symbol {
 	return elf.Symbol{}
 }
 
-// OrbisElf.getProgramHeader searches the program header table of the input ELF with the given type and flags, and returns
+// getProgramHeader searches the program header table of the input ELF with the given type and flags, and returns
 // a pointer to that program header if it's found. If it cannot be found, a nil pointer is returned.
 func (orbisElf *OrbisElf) getProgramHeader(headerType elf.ProgType, headerFlags elf.ProgFlag) *elf.Prog {
 	for _, header := range orbisElf.ElfToConvert.Progs {
@@ -83,7 +79,7 @@ func (orbisElf *OrbisElf) getProgramHeader(headerType elf.ProgType, headerFlags 
 }
 
 // checkIfLibraryContainsSymbol takes a given library and symbol name, and checks if the library contains that symbol. It
-// returns a boolean of whether or not that library contains that symbol, as well as error. If we cannot get a libraries
+// returns a boolean of whether that library contains that symbol, as well as error. If we cannot get a libraries
 // symbol list, false and an error is returned. Otherwise, the true or false and nil are returned.
 func checkIfLibraryContainsSymbol(librarySymbols []elf.Symbol, symbolName string) bool {
 	for _, symbol := range librarySymbols {
@@ -101,6 +97,18 @@ func intToByteArray(value int) []byte {
 	binary.LittleEndian.PutUint32(valueBuff, uint32(value))
 
 	return valueBuff
+}
+
+// contains takes a given slice and element, and checks if the element is present within the slice. Returns true if it is
+// present, false otherwise.
+func contains(slice []string, element string) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+
+	return false
 }
 
 // writeNullBytes takes a given size and writes null bytes to the buffer. Returns the number of null bytes written.
@@ -122,23 +130,11 @@ func writePaddingBytes(buffer *[]byte, size uint64, align uint64) uint64 {
 	return writeNullBytes(buffer, padding)
 }
 
-// contains takes a given slice and element, and checks if the element is present within the slice. Returns true if it is
-// present, false otherwise.
-func contains(slice []string, element string) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-
-	return false
-}
-
 ////
 // OrderedMap specific types and functions
 ////
 
-// Type OrderedMap is a type that contains a map as well as a key list. This will ensure the map maintains order, as normal
+// OrderedMap is a type that contains a map as well as a key list. This will ensure the map maintains order, as normal
 // hash maps do not guarantee order, which can produce hard to track down bugs later.
 type OrderedMap struct {
 	keys   []interface{}
@@ -153,13 +149,13 @@ func NewOrderedMap() *OrderedMap {
 	return &orderedMap
 }
 
-// OrderedMap.Get uses a given key to return the corresponding mapping.
+// Get uses a given key to return the corresponding mapping.
 func (orderedMap *OrderedMap) Get(key interface{}) interface{} {
 	val, _ := orderedMap.values[key]
 	return val
 }
 
-// OrderedMap.Set uses a given key to set that key's mapping to a given value.
+// Set uses a given key to set that key's mapping to a given value.
 func (orderedMap *OrderedMap) Set(key interface{}, value interface{}) {
 	_, exists := orderedMap.values[key]
 
@@ -170,7 +166,7 @@ func (orderedMap *OrderedMap) Set(key interface{}, value interface{}) {
 	orderedMap.values[key] = value
 }
 
-// OrderedMap.Keys returns the current list of keys for the OrderedMap.
+// Keys returns the current list of keys for the OrderedMap.
 func (orderedMap *OrderedMap) Keys() []interface{} {
 	return orderedMap.keys
 }

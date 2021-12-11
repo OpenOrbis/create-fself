@@ -1,0 +1,67 @@
+package fself
+
+///
+// Default block size
+///
+
+const BLOCK_SIZE = 0x4000
+
+///
+// Magic constants
+///
+
+const SELF_MAGIC_SELF = 0x1D3D154F
+const SELF_CONTROL_BLOCK_TYPE_NPDRM = 0x3
+
+///
+// Modes
+///
+
+const SELF_MODE_SPECIFICUSER = 0x1
+
+///
+// Endianness / byte order types
+///
+
+const SELF_DATA_LSB = 0x1
+
+///
+// Property bit shifts
+///
+
+const SELF_ENTRY_PROPERTY_BIT_SIGNED = 2
+const SELF_ENTRY_PROPERTY_BIT_HASBLOCKS = 11
+const SELF_ENTRY_PROPERTY_BIT_BLOCKSIZE = 12
+const SELF_ENTRY_PROPERTY_BIT_HASDIGESTS = 16
+const SELF_ENTRY_PROPERTY_BIT_SEGMENT_INDEX = 20
+
+///
+// Struct sizes
+///
+
+const SELF_HEADER_SIZE = 0x20
+const SELF_ENTRY_SIZE = 0x50
+const SELF_ELF_HEADER_SIZE = 0x40
+const SELF_ELF_PROGHEADER_SIZE = 0x38
+const SELF_EXTENDED_HEADER_SIZE = 0x40
+const SELF_META_FOOTER_SIZE = 0x50
+const SELF_NPDRM_BLOCK_SIZE = 0x30
+const SELF_META_BLOCK_SIZE = 0x50
+const SELF_META_DATA_BLOCK_SIZE = 0x20
+const SELF_SIGNATURE_SIZE = 0x100
+
+const SELF_PTYPE_FAKE = 0x1
+const SELF_PTYPE_NPDRM_EXEC = 0x4
+const SELF_PTYPE_NPDRM_DYNLIB = 0x5
+const SELF_PTYPE_SYSTEM_EXEC = 0x8
+const SELF_PTYPE_SYSTEM_DYNLIB = 0x9
+const SELF_PTYPE_HOST_KERNEL = 0xC
+const SELF_PTYPE_SECURE_MODULE = 0xE
+const SELF_PTYPE_SECURE_KERNEL = 0xF
+
+///
+// ELF values
+///
+
+const PT_SCE_DYNLIBDATA = 0x61000000 // Dynamic Linking Data
+const PT_SCE_RELRO = 0x61000010      // Read-Only Reallocation Data

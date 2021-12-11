@@ -1,14 +1,15 @@
-package main
+package oelf
 
 import (
 	"debug/elf"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 )
 
-// Struct OrbisElf groups together information important to the final converted Orbis ELF. It also contains information
+// OrbisElf groups together information important to the final converted Orbis ELF. It also contains information
 // about the ELF file to convert to be accessed from OrbisElf's methods.
 type OrbisElf struct {
 	ProgramHeaders []elf.Prog64
@@ -18,13 +19,15 @@ type OrbisElf struct {
 	ElfToConvertName       string
 	ElfToConvert           *elf.File
 	ModuleSymbolDictionary *OrderedMap
+	WrittenBytes           int
+	IsLibrary              bool
 
 	FinalFile *os.File
 }
 
-// OrbisElf.ValidateInputELF performs checks on the ELF to be converted. It checks the byte order, machine, class, and
+// validateInputELF performs checks on the ELF to be converted. It checks the byte order, machine, class, and
 // ensures the necessary segments exist. Returns an error if a check fails, nil otherwise.
-func (orbisElf *OrbisElf) ValidateInputELF() error {
+func (orbisElf *OrbisElf) validateInputELF() error {
 	// The input ELF must be little endian, and of AMD64 architecture
 	if orbisElf.ElfToConvert.ByteOrder != binary.LittleEndian {
 		return errors.New("byte order must be little endian")
@@ -41,54 +44,46 @@ func (orbisElf *OrbisElf) ValidateInputELF() error {
 	return nil
 }
 
-// buildOrbisElf parses an ELF path from inputFile and writes an output Orbis ELF to outputFile. Returns an error if
-// an issue occurred during conversion, nil otherwise.
-func buildOrbisElf(inputFilePath string, outputFilePath string, libName string, sdkVer int) {
+// CreateOrbisElf initiates an instance of OrbisElf and returns it
+func CreateOrbisElf(isLib bool, inputFilePath string, outputFilePath string, libName string) (*OrbisElf, error) {
+	fmt.Printf("0\n")
 	// Open the ELF file to be converted, and create a file for the final Orbis ELF
 	inputElf, err := elf.Open(inputFilePath)
-	check(err)
-
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("1\n")
 	// Create final oelf file
 	outputElf, err := os.Create(outputFilePath)
-	check(err)
-
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("2\n")
 	orbisElf := OrbisElf{
 		LibraryName:      libName,
 		ElfToConvertName: inputFilePath,
 		ElfToConvert:     inputElf,
 		FinalFile:        outputElf,
 	}
-
+	fmt.Printf("3\n")
 	// Validate ELF to convert before processing
-	err = orbisElf.ValidateInputELF()
-	check(err)
-
+	err = orbisElf.validateInputELF()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("4\n")
 	// Copy contents of input file into output file
 	inputFileBytes, err := ioutil.ReadFile(inputFilePath)
-	check(err)
-
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("5\n")
 	writtenBytes, err := orbisElf.FinalFile.Write(inputFileBytes)
-	check(err)
-
-	// Create the .sce_dynlib_data segment onto the end of the file
-	err = orbisElf.GenerateDynlibData(uint64(writtenBytes))
-	check(err)
-
-	// Generate updated program headers
-	err = orbisElf.GenerateProgramHeaders()
-	check(err)
-
-	// Overwrite ELF file header with PS4-ified values, as well as the SDK version in .sce_process_param/.sce_module_param
-	err = orbisElf.RewriteELFHeader()
-	check(err)
-
-	err = orbisElf.RewriteSDKVersion(sdkVer)
-	check(err)
-
-	// Overwrite program header table
-	err = orbisElf.RewriteProgramHeaders()
-	check(err)
-
-	err = orbisElf.FinalFile.Close()
-	check(err)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("6\n")
+	orbisElf.IsLibrary = isLib
+	orbisElf.WrittenBytes = writtenBytes
+	return &orbisElf, nil
 }
