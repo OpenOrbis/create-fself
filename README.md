@@ -61,17 +61,17 @@ Usage of create-fself:
 Tool main application code.
 
 **pkg/oelf/**
-Everything related to parsing and building Orbis ELFs (OELFs). These OELFs are not the final product, but an intermediate
+- Everything related to parsing and building Orbis ELFs (OELFs). These OELFs are not the final product, but an intermediate
 between regular PC ELFs and the final fSELF the PS4 uses.
 
 **pkg/fself/**
-Everything related to parsing and building fSELFs. Most of this code is thanks to flatz' original python script.
+- Everything related to parsing and building fSELFs. Most of this code is thanks to flatz' original python script.
 
 **scripts/**
-Build scripts for windows and linux.
+- Build scripts for windows and linux.
 
 **Makefile**
-Makefile for building on linux.
+- Makefile for building on linux.
 
 ***
 
