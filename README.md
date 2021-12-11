@@ -154,7 +154,7 @@ OrderedMap.Keys returns the current list of keys for the OrderedMap.
 - Specter: Lead maintainer
 - Kiwidog: Maintainer
 - CrazyVoid: Maintainer
-- flatz: SELF reversing/research
-- sleirsgoevy: various fixes and improvements
-- idc: various fixes and improvements
-- lordfriky: macOS support
+- Flatz: SELF reversing/research
+- Sleirsgoevy: various fixes and improvements
+- IDC: various fixes and improvements
+- LordFriky: macOS support
