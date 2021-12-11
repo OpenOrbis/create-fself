@@ -1,34 +1,40 @@
-# Create Eboot + Create Lib Documentation
+# Tool Documentation (create-fself)
 
 ## Summary
-The `create-eboot` and `create-lib` tools takes 64-bit Executable Linkable Format (ELF) input files, and produces 64-bit Orbis ELF (OELF) output files that are converted to be compatible with the PlayStation 4 (PS4) ELF loader. It further takes these OELF files and creates a final binary that the PS4 expects. For `create-eboot`, this is `eboot.bin`, which is a Signed Executable Linkable Format (SELF). For `create-lib`, this is a Playstation Relocatable eXecutable (PRX).
+`create-fself` can be used to take 64-bit ELF files and produce **f**ake **S**igned **ELF**s that can be used on the PlayStation 4 (PS4). This includes `eboot.bin` files and Playstation Relocatable eXecutable (PRX) library files.
 
 ### Build
-The tool is written in Golang. Commands should be the same between Windows and Linux assuming Golang is installed on the target system.
+This tool is written in Golang. Commands should be the same between Windows and Linux assuming Golang is installed on the target system.
 
-Building is very easy, simply go to the root directory of the tool (`/src/tools/create-eboot/`) and run the `go build` command.
+Building is straightforward, navigate to `/cmd/create-fself` and run `go build`.
 
-There is a shell and batch build script to compile both `create-eboot` and `create-lib` on all platforms (Windows, Linux, and macOS).
+There is a shell and batch build script to compile `create-fself` for all (Windows, Linux, and macOS).
 
 ### Usage
-The `create-eboot` tool requires two arguments. These arguments are `-in` and `-out` for the input and output files respectively.
+`create-fself` requires two arguments. The `-in` input ELF path, as well as either `-eboot` (for games/apps) or `-lib` (for libraries).
 
-The `create-lib` tool requires only one argument, being `-in`.
-
-There are also additional optional arguments for customizing app information in the final SELF or PRX.
+There are also additional optional arguments that can be used.
 
 ```
-Usage of create-eboot (as well as create-lib):
+Usage of create-fself:
   -appversion int
         application version
   -authinfo string
         authentication info
+  -eboot string
+        produces an eboot, using the provided path for the output eboot
   -fwversion int
         firmware version
   -in input ELF path
         input ELF path to convert
-  -out output ELF path
-        output ELF path to write to
+  -lib string
+        produces an sprx, using the provided path for final .prx file
+  -libname string
+        library name (ignored in create-eboot)
+  -library-path string
+        additional directories to search for .so files
+  -out string
+        output intermediate OELF path
   -paid int
         program authentication ID (default 4035225266123964433)
   -ptype string
@@ -37,40 +43,23 @@ Usage of create-eboot (as well as create-lib):
         SDK version integer (default 72384769)
 ```
 
-## Source code overview
-Each source file is responsible for a group of actions invoked by the tool. Below is a list of source files and what they're generally responsible for.
+## Architecture
 
-**MakeFSELF.go**
+**cmd/create-fself/**
+Tool main application code.
 
-Contains functions and structures necessary for creating a fake SELF (FSELF). This is mostly a port of flatz' `make_fself.py` script.
+**pkg/oelf/**
+Everything related to parsing and building Orbis ELFs (OELFs). These OELFs are not the final product, but an intermediate
+between regular PC ELFs and the final fSELF the PS4 uses.
 
-**OELF.go**
+**pkg/fself/**
+Everything related to parsing and building fSELFs. Most of this code is thanks to flatz' original python script.
 
-Main file that invokes functions to rewrite the input ELF and writes to the final output ELF given.
+**scripts/**
+Build scripts for windows and linux.
 
-**OELFGenDynlibData.go**
-
-Contains functions necessary for build the `.sce_dynlib_data` segment for dynamic linking. This file and it's functions are the heart of the tool.
-
-**OELFGenProgramHeaders.go**
-
-Contains functions necessary for generating a list of program headers for the final ELF file.
-
-**OELFRewriteData.go**
-
-Contains functions necessary for rewriting the ELF. This includes rewriting various ELF header fields, the program header table, the SDK version, and the interpreter.
-
-**PS4Constants.go**
-
-Contains constants for ELF-related types that are specific to PS4, as well as other types that are not in the `debug/elf` package. This includes ELF types, program header types, dynamic table tags, and relocation types.
-
-**Utils.go**
-
-Contains various helper functions used by other files. The helper functions available can be found further down.
-
-**main.go**
-
-Contains the main entry point and handles argument parsing.
+**Makefile**
+Makefile for building on linux.
 
 ***
 
@@ -148,3 +137,12 @@ OrderedMap.Set uses a given key to set that key's mapping to a given value.
 func (orderedMap *OrderedMap) Keys() []interface{}
 ```
 OrderedMap.Keys returns the current list of keys for the OrderedMap.
+
+## Maintainers + Thanks
+- Specter: Lead maintainer
+- Kiwidog: Maintainer
+- CrazyVoid: Maintainer
+- flatz: SELF reversing/research
+- sleirsgoevy: various fixes and improvements
+- idc: various fixes and improvements
+- lordfriky: macOS support
