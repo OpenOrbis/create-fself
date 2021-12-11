@@ -1,0 +1,57 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    name: create-fself
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+    
+    - name: Setup build directory
+      run: |
+        mkdir build
+
+    - name: Build windows version
+      run: |
+        cd cmd/create-fself
+        GOOS=windows go build -o ../../build/create-fself.exe -modfile=go-linux.mod
+
+    - name: Build linux version
+      run: |
+        cd cmd/create-fself
+        GOOS=windows go build -o ../../build/create-fself -modfile=go-linux.mod
+        
+    - name: Build macOS version
+      run: |
+        cd cmd/create-fself
+        GOOS=windows go build -o ../../build/create-fself-macos -modfile=go-linux.mod
+
+    - name: Upload windows version
+      uses: actions/upload-artifact@v2
+      with:
+        name: create-fself.exe
+        path: build/create-fself.exe
+
+    - name: Upload linux version
+      uses: actions/upload-artifact@v2
+      with:
+        name: create-fself
+        path: build/create-fself
+
+    - name: Upload macOS version
+      uses: actions/upload-artifact@v2
+      with:
+        name: create-fself
+        path: build/create-fself-macos
