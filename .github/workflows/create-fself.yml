@@ -31,12 +31,12 @@ jobs:
     - name: Build linux version
       run: |
         cd cmd/create-fself
-        GOOS=windows go build -o ../../build/create-fself -modfile=go-linux.mod
+        go build -o ../../build/create-fself -modfile=go-linux.mod
         
     - name: Build macOS version
       run: |
         cd cmd/create-fself
-        GOOS=windows go build -o ../../build/create-fself-macos -modfile=go-linux.mod
+        GOOS=darwin go build -o ../../build/create-fself-macos -modfile=go-linux.mod
 
     - name: Upload windows version
       uses: actions/upload-artifact@v2
