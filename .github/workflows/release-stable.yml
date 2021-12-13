@@ -34,12 +34,12 @@ jobs:
     - name: Build linux version
       run: |
         cd cmd/create-fself
-        GOOS=windows go build -o ../../release/bin/windows/create-fself -modfile=go-linux.mod
+        go build -o ../../release/bin/linux/create-fself -modfile=go-linux.mod
 
     - name: Build macOS version
       run: |
         cd cmd/create-fself
-        GOOS=windows go build -o ../../release/bin/macos/create-fself -modfile=go-linux.mod
+        GOOS=darwin go build -o ../../release/bin/macos/create-fself -modfile=go-linux.mod
     
     - name: Create tarball
       run: |
