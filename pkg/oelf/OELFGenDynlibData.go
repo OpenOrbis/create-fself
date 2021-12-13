@@ -43,6 +43,7 @@ const (
 var _moduleToLibDictionary = map[string]string{
 	"libc":                       "libc.prx",
 	"libkernel":                  "libkernel.prx",
+	"libkernel_sys":              "libkernel_sys.prx",
 	"libSceAjm":                  "libSceAjm.prx",
 	"libSceAppContent":           "libSceAppContent.prx",
 	"libSceAudio3d":              "libSceAudio3d.prx",

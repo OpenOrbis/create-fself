@@ -16,6 +16,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	// Get all the necessary sections first
 	// TODO: Verify these sections exist in OrbisElf.ValidateInputELF()
 	textSection := orbisElf.ElfToConvert.Section(".text")
+	dynamicSection := orbisElf.ElfToConvert.Section(".dynamic")
 	relroSection := orbisElf.ElfToConvert.Section(".data.rel.ro")
 	gotSection := orbisElf.ElfToConvert.Section(".got")
 	gotPltSection := orbisElf.ElfToConvert.Section(".got.plt")
@@ -118,7 +119,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynlibHeader)
 
 	// PT_DYNAMIC - The dynamic table segment. This segment overlaps partially with PT_SCE_DYNLIB_DATA.
-	dynamicHeader := generateDynamicHeader(_offsetOfDynamic, _sizeOfDynamic)
+	dynamicHeader := generateDynamicHeader(_offsetOfDynamic, _sizeOfDynamic, dynamicSection.Addr)
 	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynamicHeader)
 
 	sort.Sort(programHeaderList(orbisElf.ProgramHeaders))
@@ -293,12 +294,12 @@ func generateSceDynlibDataHeader(offset uint64, size uint64) elf.Prog64 {
 
 // generateDynamicHeader takes a given offset and size to create a new PT_DYNAMIC header with updated values. Returns
 // the final program header.
-func generateDynamicHeader(offset uint64, size uint64) elf.Prog64 {
+func generateDynamicHeader(offset uint64, size uint64, addr uint64) elf.Prog64 {
 	return elf.Prog64{
 		Type:   uint32(elf.PT_DYNAMIC),
 		Flags:  uint32(elf.PF_R | elf.PF_W),
-		Vaddr:  0,
-		Paddr:  0,
+		Vaddr:  addr,
+		Paddr:  addr,
 		Off:    offset,
 		Filesz: size,
 		Memsz:  size,

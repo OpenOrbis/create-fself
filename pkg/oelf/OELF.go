@@ -4,7 +4,6 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 )
@@ -46,43 +45,42 @@ func (orbisElf *OrbisElf) validateInputELF() error {
 
 // CreateOrbisElf initiates an instance of OrbisElf and returns it
 func CreateOrbisElf(isLib bool, inputFilePath string, outputFilePath string, libName string) (*OrbisElf, error) {
-	fmt.Printf("0\n")
 	// Open the ELF file to be converted, and create a file for the final Orbis ELF
 	inputElf, err := elf.Open(inputFilePath)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("1\n")
+
 	// Create final oelf file
 	outputElf, err := os.Create(outputFilePath)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("2\n")
+
 	orbisElf := OrbisElf{
 		LibraryName:      libName,
 		ElfToConvertName: inputFilePath,
 		ElfToConvert:     inputElf,
 		FinalFile:        outputElf,
 	}
-	fmt.Printf("3\n")
+
 	// Validate ELF to convert before processing
 	err = orbisElf.validateInputELF()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("4\n")
+
 	// Copy contents of input file into output file
 	inputFileBytes, err := ioutil.ReadFile(inputFilePath)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("5\n")
+
 	writtenBytes, err := orbisElf.FinalFile.Write(inputFileBytes)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("6\n")
+
 	orbisElf.IsLibrary = isLib
 	orbisElf.WrittenBytes = writtenBytes
 	return &orbisElf, nil
