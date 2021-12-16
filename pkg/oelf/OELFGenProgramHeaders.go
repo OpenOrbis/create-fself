@@ -8,122 +8,114 @@ import (
 	"sort"
 )
 
-type programHeaderList []elf.Prog64
+type programHeaderList []*elf.Prog
 
-// GenerateProgramHeaders parses the input ELF's section header table to generate fresh new program headers.
+// GenerateProgramHeaders parses the input ELF's section header table to generate updated program headers.
 // Returns nil.
 func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	// Get all the necessary sections first
 	// TODO: Verify these sections exist in OrbisElf.ValidateInputELF()
 	textSection := orbisElf.ElfToConvert.Section(".text")
-	dynamicSection := orbisElf.ElfToConvert.Section(".dynamic")
 	relroSection := orbisElf.ElfToConvert.Section(".data.rel.ro")
-	gotSection := orbisElf.ElfToConvert.Section(".got")
-	gotPltSection := orbisElf.ElfToConvert.Section(".got.plt")
+	dataSection := orbisElf.ElfToConvert.Section(".data")
+	bssSection := orbisElf.ElfToConvert.Section(".bss")
 	procParamSection := orbisElf.ElfToConvert.Section(".data.sce_process_param")
 
 	if orbisElf.IsLibrary {
 		procParamSection = orbisElf.ElfToConvert.Section(".data.sce_module_param")
 	}
 
-	// Get proper data segment information
-	dataSection := orbisElf.ElfToConvert.Section(".data")
-	bssSection := orbisElf.ElfToConvert.Section(".bss")
+	// First pass: drop program headers that we don't need and copy all others
+	for _, progHeader := range orbisElf.ElfToConvert.Progs {
+		// PT_LOAD read-only should be consolidated into PT_LOAD for .text
+		if progHeader.Type == elf.PT_LOAD && progHeader.Flags == elf.PF_R {
+			continue
+		}
 
-	// We don't need to check if these are nil because we've already verified the input ELF has a .text segment
-	oldTextHeader := orbisElf.getProgramHeader(elf.PT_LOAD, elf.PF_R|elf.PF_X)
+		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
+		if progHeader.Type == elf.PT_LOAD && progHeader.Off == relroSection.Offset {
+			continue
+		}
 
-	// PT_INTERP - The interpreter string. This will always be at text + 0x00.
+		// GNU_STACK can be dropped, PS4 doesn't need it
+		if progHeader.Type == elf.PT_GNU_STACK {
+			continue
+		}
+
+		// Keep all others
+		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, progHeader)
+	}
+
+	// Second pass: modify headers as required
+	for _, progHeader := range orbisElf.ProgramHeaders {
+		// We generate a new dynamic table, so we'll need to update this header
+		if progHeader.Type == elf.PT_DYNAMIC {
+			progHeader.Off = _offsetOfDynamic
+			progHeader.Vaddr = _offsetOfDynamic
+			progHeader.Paddr = _offsetOfDynamic
+			progHeader.Filesz = _sizeOfDynamic
+			progHeader.Memsz = _sizeOfDynamic
+		}
+
+		// Need to change GNU_RELRO type to SCE_RELRO. We also need to align the size so it and the data PT_LOAD are
+		// contiguous.
+		if progHeader.Type == elf.PT_GNU_RELRO {
+			progHeader.Type = PT_SCE_RELRO
+
+			// We need to fill the hole between the SCE_RELRO segment and the PT_LOAD segment for .data. Since
+			// .data.sce_process_param should be the first thing in the data segment, we can use this to calculate.
+			expandedSize := procParamSection.Offset - progHeader.Off
+			progHeader.Filesz = expandedSize
+			progHeader.Memsz = expandedSize
+			progHeader.Align = 0x4000
+		}
+
+		// PT_LOAD's must be page aligned
+		if progHeader.Type == elf.PT_LOAD {
+			if progHeader.Align != 0x4000 {
+				progHeader.Align = 0x4000
+			}
+
+			// PT_LOAD for .text will have it's size expanded to be contiguous with relro segment
+			if progHeader.Flags == (elf.PF_R | elf.PF_X) {
+				expandedSize := relroSection.Offset - progHeader.Off
+				progHeader.Filesz = expandedSize
+				progHeader.Memsz = expandedSize
+			}
+
+			// PT_LOAD for data needs to be shifted to contain SCE specific data
+			if progHeader.Flags == (elf.PF_R | elf.PF_W) {
+				// We'll get the size by subtracting the proc param offset from data's offset so we get padding for free, which the
+				// header size will not provide.
+				dataSize := (dataSection.Offset - procParamSection.Offset) + dataSection.Size
+				dataMemSize := (dataSection.Addr - procParamSection.Addr) + dataSection.Size
+
+				// Also check for .bss - if it exists, factor it into the size
+				if bssSection != nil {
+					dataMemSize += (bssSection.Addr - (dataSection.Addr + dataSection.Size)) + bssSection.Size
+				}
+
+				progHeader.Off = procParamSection.Offset
+				progHeader.Vaddr = procParamSection.Addr
+				progHeader.Paddr = procParamSection.Addr
+				progHeader.Filesz = dataSize
+				progHeader.Memsz = dataMemSize
+			}
+		}
+	}
+
+	// Generate PS4-specific headers
+	sceProcParamHeader := generateSceProcParamHeader(orbisElf.IsLibrary, procParamSection.Offset, procParamSection.Addr, procParamSection.Size)
+	sceDynlibDataHeader := generateSceDynlibDataHeader(_offsetOfDynlibData, _sizeOfDynlibData)
+
+	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, sceProcParamHeader, sceDynlibDataHeader)
+
 	if !orbisElf.IsLibrary {
-		interpreterHeader := generateInterpreterHeader(textSection.Offset)
-		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, interpreterHeader)
+		interpHeader := generateInterpreterHeader(textSection.Offset)
+		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, interpHeader)
 	}
-
-	// PT_TLS - Empty TLS header. Unsure if it's needed, but we'll add it anyways as it's not hard to generate.
-	oldTlsHeader := orbisElf.getProgramHeader(elf.PT_TLS, elf.PF_R)
-	tlsHeader := generateEmptyTLSHeader()
-	if oldTlsHeader != nil {
-		tlsHeader = generateTLSHeader(oldTlsHeader)
-	}
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, tlsHeader)
-
-	// PT_LOAD - The text segment.
-	textHeader := generateTextHeader(oldTextHeader)
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, textHeader)
-
-	// PT_GNU_EH_FRAME - Might not always exist, but if it does we'll need it for exception handling.
-	oldGnuEhFrameHeader := orbisElf.getProgramHeader(PT_GNU_EH_FRAME, elf.PF_R)
-
-	if oldGnuEhFrameHeader != nil {
-		gnuEhFrameHeader := generateEHFrameHeader(oldGnuEhFrameHeader)
-		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, gnuEhFrameHeader)
-	}
-
-	// PT_SCE_RELRO - This segment is a little weird since we have to generate it from multiple segments, and it *must*
-	// be contiguous with the data LOAD segment, so we need to connect the in-memory size. To do that, we'll use the
-	// offset for the first section we find for relro, and subtract it from the data LOAD segment offset.
-	dataSegmentOffset := procParamSection.Offset
-	dataSegmentAddr := procParamSection.Addr
-
-	// Check for the existence of relro-related sections
-	if gotPltSection != nil || gotSection != nil || relroSection != nil {
-		relroOffset := uint64(0)
-		relroAddr := uint64(0)
-
-		// Order of potential first sections in the relro segment:
-		// 1) .data.rel.ro
-		// 2) .got
-		// 3) .got.plt
-		if gotPltSection != nil {
-			relroOffset = gotPltSection.Offset
-			relroAddr = gotPltSection.Addr
-		}
-
-		if gotSection != nil {
-			relroOffset = gotSection.Offset
-			relroAddr = gotSection.Addr
-		}
-
-		if relroSection != nil {
-			relroOffset = relroSection.Offset
-			relroAddr = relroSection.Addr
-		}
-
-		sizeOfSceRelro := dataSegmentAddr - relroAddr
-
-		relroHeader := generateRelroHeader(relroOffset, relroAddr, sizeOfSceRelro)
-		orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, relroHeader)
-	}
-
-	// We'll get the size by subtracting the proc param offset from data's offset so we get padding for free, which the
-	// header size will not provide.
-	dataSize := (dataSection.Offset - procParamSection.Offset) + dataSection.Size
-	dataMemSize := (dataSection.Addr - procParamSection.Addr) + dataSection.Size
-
-	// Also check for .bss - if it exists, factor it into the size
-	if bssSection != nil {
-		dataMemSize += (bssSection.Addr - (dataSection.Addr + dataSection.Size)) + bssSection.Size
-	}
-
-	// PT_LOAD - The data segment.
-	dataHeader := generateDataHeader(dataSegmentOffset, dataSegmentAddr, dataSize, dataMemSize)
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dataHeader)
-
-	// PT_SCE_PROC_PARAM or PT_SCE_MODULE_PARAM - The SCE process (or module) param segment.
-	procParamHeader := generateSceProcParamHeader(orbisElf.IsLibrary, procParamSection.Offset, procParamSection.Addr, procParamSection.Size)
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, procParamHeader)
-
-	// PT_SCE_DYNLIB_DATA - The SCE dynlib data segment. This contains all the information necessary for the dynamic
-	// linker.
-	dynlibHeader := generateSceDynlibDataHeader(_offsetOfDynlibData, _sizeOfDynlibData)
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynlibHeader)
-
-	// PT_DYNAMIC - The dynamic table segment. This segment overlaps partially with PT_SCE_DYNLIB_DATA.
-	dynamicHeader := generateDynamicHeader(_offsetOfDynamic, _sizeOfDynamic, dynamicSection.Addr)
-	orbisElf.ProgramHeaders = append(orbisElf.ProgramHeaders, dynamicHeader)
 
 	sort.Sort(programHeaderList(orbisElf.ProgramHeaders))
-
 	return nil
 }
 
@@ -139,7 +131,18 @@ func (orbisElf *OrbisElf) RewriteProgramHeaders() error {
 		writeOffset := int64(programHeaderTable + (i * 0x38))
 
 		// Write the structure into a buffer
-		if err := binary.Write(progHeaderBuff, binary.LittleEndian, progHeader); err != nil {
+		header := elf.Prog64{
+			Type:   uint32(progHeader.Type),
+			Flags:  uint32(progHeader.Flags),
+			Off:    progHeader.Off,
+			Vaddr:  progHeader.Vaddr,
+			Paddr:  progHeader.Paddr,
+			Filesz: progHeader.Filesz,
+			Memsz:  progHeader.Memsz,
+			Align:  progHeader.Align,
+		}
+
+		if err := binary.Write(progHeaderBuff, binary.LittleEndian, header); err != nil {
 			return err
 		}
 
@@ -154,156 +157,61 @@ func (orbisElf *OrbisElf) RewriteProgramHeaders() error {
 
 // generateInterpreterHeader takes a given interpreterOffset and creates a program header for it. Returns the final program
 // header.
-func generateInterpreterHeader(interpreterOffset uint64) elf.Prog64 {
-	return elf.Prog64{
-		Type:  uint32(elf.PT_INTERP),
-		Flags: uint32(elf.PF_R),
-		Vaddr: 0,
-		Paddr: 0,
+func generateInterpreterHeader(interpreterOffset uint64) *elf.Prog {
+	return &elf.Prog{
+		ProgHeader: elf.ProgHeader{
+			Type:  elf.PT_INTERP,
+			Flags: elf.PF_R,
+			Vaddr: 0,
+			Paddr: 0,
 
-		// Interpreter will always be at offset 0 in the .text segment
-		Off: interpreterOffset,
+			// Interpreter will always be at offset 0 in the .text segment
+			Off: interpreterOffset,
 
-		Filesz: 0x15,
-		Memsz:  0x15,
-		Align:  1,
-	}
-}
-
-// generateEmptyTLSHeader creates an empty program header for TLS. Returns the final program header.
-func generateEmptyTLSHeader() elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(elf.PT_TLS),
-		Flags:  uint32(elf.PF_R),
-		Vaddr:  0,
-		Paddr:  0,
-		Off:    0,
-		Filesz: 0,
-		Memsz:  0,
-		Align:  1,
-	}
-}
-
-// generateInterpreterHeader takes the original PT_LOAD (.text) program header and copies it over. Returns the final
-// program header.
-func generateTextHeader(originalTextHeader *elf.Prog) elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(originalTextHeader.Type),
-		Flags:  uint32(originalTextHeader.Flags),
-		Vaddr:  originalTextHeader.Vaddr,
-		Paddr:  originalTextHeader.Paddr,
-		Off:    originalTextHeader.Off,
-		Filesz: originalTextHeader.Filesz,
-		Memsz:  originalTextHeader.Memsz,
-		Align:  0x4000,
-	}
-}
-func generateTLSHeader(originalTLSHeader *elf.Prog) elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(originalTLSHeader.Type),
-		Flags:  uint32(originalTLSHeader.Flags),
-		Vaddr:  originalTLSHeader.Vaddr,
-		Paddr:  originalTLSHeader.Paddr,
-		Off:    originalTLSHeader.Off,
-		Filesz: originalTLSHeader.Filesz,
-		Memsz:  originalTLSHeader.Memsz,
-		Align:  1,
-	}
-}
-
-// generateEHFrameHeader takes the original PT_GNU_EH_FRAME program header and copies it over. Returns the final program
-// header.
-func generateEHFrameHeader(originalEHHeader *elf.Prog) elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(originalEHHeader.Type),
-		Flags:  uint32(originalEHHeader.Flags),
-		Vaddr:  originalEHHeader.Vaddr,
-		Paddr:  originalEHHeader.Vaddr,
-		Off:    originalEHHeader.Off,
-		Filesz: originalEHHeader.Filesz,
-		Memsz:  originalEHHeader.Memsz,
-		Align:  0x4,
-	}
-}
-
-// generateInterpreterHeader takes a given offset, virtualAddr, and size to create a new PT_SCE_RELRO program header.
-// Returns the final program header.
-func generateRelroHeader(offset uint64, virtualAddr uint64, size uint64) elf.Prog64 {
-	return elf.Prog64{
-		Type:   PT_SCE_RELRO,
-		Flags:  uint32(elf.PF_R),
-		Vaddr:  virtualAddr,
-		Paddr:  virtualAddr,
-		Off:    offset,
-		Filesz: size,
-		Memsz:  size,
-		Align:  0x4000,
-	}
-}
-
-// generateDataHeader takes the given offset, virtualAddr, and size to create a new PT_LOAD (.data) program header.
-// Returns the final program header.
-func generateDataHeader(offset uint64, virtualAddr uint64, size uint64, memSize uint64) elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(elf.PT_LOAD),
-		Flags:  uint32(elf.PF_R | elf.PF_W),
-		Vaddr:  virtualAddr,
-		Paddr:  virtualAddr,
-		Off:    offset,
-		Filesz: size,
-		Memsz:  memSize,
-		Align:  0x4000,
+			Filesz: 0x15,
+			Memsz:  0x15,
+			Align:  1,
+		},
 	}
 }
 
 // generateSceProcParamHeader takes the given offset, virtualAddr, and size to create a new PT_SCE_PROC_PARAM program
 // header. Returns the final program header.
-func generateSceProcParamHeader(isLibrary bool, offset uint64, virtualAddr uint64, size uint64) elf.Prog64 {
+func generateSceProcParamHeader(isLibrary bool, offset uint64, virtualAddr uint64, size uint64) *elf.Prog {
 	segmentType := PT_SCE_PROC_PARAM
 
 	if isLibrary {
 		segmentType = PT_SCE_MODULE_PARAM
 	}
 
-	return elf.Prog64{
-		Type:   uint32(segmentType),
-		Flags:  uint32(elf.PF_R),
-		Vaddr:  virtualAddr,
-		Paddr:  virtualAddr,
-		Off:    offset,
-		Filesz: size,
-		Memsz:  size,
-		Align:  0x8,
+	return &elf.Prog{
+		ProgHeader: elf.ProgHeader{
+			Type:   elf.ProgType(uint32(segmentType)),
+			Flags:  elf.PF_R,
+			Vaddr:  virtualAddr,
+			Paddr:  virtualAddr,
+			Off:    offset,
+			Filesz: size,
+			Memsz:  size,
+			Align:  0x8,
+		},
 	}
 }
 
 // generateSceDynlibDataHeader takes the given offset and size to create a new PT_SCE_DYNLIBDATA program header. Returns
 // the final program header.
-func generateSceDynlibDataHeader(offset uint64, size uint64) elf.Prog64 {
-	return elf.Prog64{
-		Type:   PT_SCE_DYNLIBDATA,
-		Flags:  uint32(elf.PF_R),
-		Vaddr:  0,
-		Paddr:  0,
-		Off:    offset,
-		Filesz: size,
-		Memsz:  0,
-		Align:  0x10,
-	}
-}
-
-// generateDynamicHeader takes a given offset and size to create a new PT_DYNAMIC header with updated values. Returns
-// the final program header.
-func generateDynamicHeader(offset uint64, size uint64, addr uint64) elf.Prog64 {
-	return elf.Prog64{
-		Type:   uint32(elf.PT_DYNAMIC),
-		Flags:  uint32(elf.PF_R | elf.PF_W),
-		Vaddr:  addr,
-		Paddr:  addr,
-		Off:    offset,
-		Filesz: size,
-		Memsz:  size,
-		Align:  0x8,
+func generateSceDynlibDataHeader(offset uint64, size uint64) *elf.Prog {
+	return &elf.Prog{
+		ProgHeader: elf.ProgHeader{
+			Type:   PT_SCE_DYNLIBDATA,
+			Flags:  elf.PF_R,
+			Vaddr:  0,
+			Paddr:  0,
+			Off:    offset,
+			Filesz: size,
+			Memsz:  0,
+			Align:  0x10,
+		},
 	}
 }
 
@@ -329,11 +237,11 @@ var progHeaderTypeOrder = []elf.ProgType{
 
 // getProgramHeaderPriority is a sorting function that will utilize the progHeaderTypeOrder mapping to determine an index
 // for the program header, which will be utilized by the programHeaderList.Less() function for sorting.
-func getProgramHeaderPriority(progHeaderOrder []elf.ProgType, progType uint32, progFlags uint32) int {
+func getProgramHeaderPriority(progHeaderOrder []elf.ProgType, progType elf.ProgType, progFlags elf.ProgFlag) int {
 	for i, v := range progHeaderOrder {
-		if uint32(v) == progType {
+		if v == progType {
 			// Ensure with PT_LOAD that the flags are correct (ie. the second PT_LOAD should have R|W flags
-			if v == elf.PT_LOAD && i == 0 && progFlags == uint32(elf.PF_R|elf.PF_W) {
+			if v == elf.PT_LOAD && i == 0 && progFlags == elf.PF_R|elf.PF_W {
 				continue
 			}
 
@@ -357,5 +265,5 @@ func (s programHeaderList) Swap(i int, j int) {
 
 // Less uses the getProgramHeaderPriority() function to sort the list by priority.
 func (s programHeaderList) Less(i int, j int) bool {
-	return getProgramHeaderPriority(progHeaderTypeOrder, s[i].Type, s[i].Flags) < getProgramHeaderPriority(progHeaderTypeOrder, s[j].Type, s[j].Flags)
+	return getProgramHeaderPriority(progHeaderTypeOrder, s[i].ProgHeader.Type, s[i].ProgHeader.Flags) < getProgramHeaderPriority(progHeaderTypeOrder, s[j].Type, s[j].Flags)
 }

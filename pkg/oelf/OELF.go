@@ -11,7 +11,7 @@ import (
 // OrbisElf groups together information important to the final converted Orbis ELF. It also contains information
 // about the ELF file to convert to be accessed from OrbisElf's methods.
 type OrbisElf struct {
-	ProgramHeaders []elf.Prog64
+	ProgramHeaders []*elf.Prog
 	SectionHeaders []elf.Section64
 
 	LibraryName            string
