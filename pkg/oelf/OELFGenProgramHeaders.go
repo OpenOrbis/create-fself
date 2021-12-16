@@ -33,8 +33,10 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		}
 
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
-		if progHeader.Type == elf.PT_LOAD && progHeader.Off == relroSection.Offset {
-			continue
+		if relroSection != nil {
+			if progHeader.Type == elf.PT_LOAD && progHeader.Off == relroSection.Offset {
+				continue
+			}
 		}
 
 		// GNU_STACK can be dropped, PS4 doesn't need it
@@ -76,11 +78,13 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 				progHeader.Align = 0x4000
 			}
 
-			// PT_LOAD for .text will have it's size expanded to be contiguous with relro segment
+			// PT_LOAD for .text will have it's size expanded to be contiguous with relro if needed
 			if progHeader.Flags == (elf.PF_R | elf.PF_X) {
-				expandedSize := relroSection.Offset - progHeader.Off
-				progHeader.Filesz = expandedSize
-				progHeader.Memsz = expandedSize
+				if relroSection != nil {
+					expandedSize := relroSection.Offset - progHeader.Off
+					progHeader.Filesz = expandedSize
+					progHeader.Memsz = expandedSize
+				}
 			}
 
 			// PT_LOAD for data needs to be shifted to contain SCE specific data
