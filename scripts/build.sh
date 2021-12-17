@@ -1,4 +1,8 @@
+#!/bin/bash -v
 cd ../cmd/create-fself
+
+# Init
+#go mod init github.com/OpenOrbis/create-fself
 
 ## Windows
 GOOS=windows go build -o create-fself.exe -modfile=go-linux.mod
