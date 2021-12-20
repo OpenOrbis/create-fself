@@ -25,6 +25,9 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		procParamSection = orbisElf.ElfToConvert.Section(".data.sce_module_param")
 	}
 
+	// Get GNU_RELRO header pre-emptively (we'll need to check it to eliminate duplicate PT_LOAD headers)
+	gnuRelroSegment := orbisElf.getProgramHeader(elf.PT_GNU_RELRO, elf.PF_R)
+
 	// First pass: drop program headers that we don't need and copy all others
 	for _, progHeader := range orbisElf.ElfToConvert.Progs {
 		// PT_LOAD read-only should be consolidated into PT_LOAD for .text
@@ -33,10 +36,16 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		}
 
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
-		if relroSection != nil {
-			if progHeader.Type == elf.PT_LOAD && progHeader.Off == relroSection.Offset {
+		if gnuRelroSegment != nil {
+			if progHeader.Type == elf.PT_LOAD && progHeader.Off == gnuRelroSegment.Off {
 				continue
 			}
+		}
+
+		// GNU_RELRO will sometimes get generated even if no .data.rel.ro is present. This is bad for PS4 because the
+		// header will be unaligned and it's not necessary. Get rid of it if there's no relro section.
+		if progHeader.Type == elf.PT_GNU_RELRO && relroSection == nil {
+			continue
 		}
 
 		// GNU_STACK can be dropped, PS4 doesn't need it

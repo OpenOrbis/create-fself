@@ -122,3 +122,65 @@ func (orbisElf *OrbisElf) RewriteInterpreter(interpreter string) error {
 	_, err = orbisElf.FinalFile.WriteAt(interpreterBuff, rewriteOffset)
 	return err
 }
+
+// RewriteDynamicSectionHeader will overwrite the address of the .dynamic section with the given address. Returns
+// an error if the write failed, nil otherwise.
+func (orbisElf *OrbisElf) RewriteDynamicSectionHeader() error {
+	var (
+		inputFile *os.File
+		err       error
+	)
+
+	// Get the section header offset info from the original file
+	inputHdr := new(elf.Header64)
+
+	if inputFile, err = os.Open(orbisElf.ElfToConvertName); err != nil {
+		return err
+	}
+
+	if _, err = inputFile.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+
+	if err = binary.Read(inputFile, orbisElf.ElfToConvert.ByteOrder, inputHdr); err != nil {
+		return err
+	}
+
+	sectionHeadersOffset := inputHdr.Shoff
+
+	// Find the dynamic header
+	for i := uint16(0); i < inputHdr.Shnum; i++ {
+		sectionHdr := new(elf.Section64)
+		sectionHeaderOffset := int64(sectionHeadersOffset + uint64(i*inputHdr.Shentsize))
+
+		if _, err = inputFile.Seek(sectionHeaderOffset, io.SeekStart); err != nil {
+			return err
+		}
+
+		if err = binary.Read(inputFile, orbisElf.ElfToConvert.ByteOrder, sectionHdr); err != nil {
+			return err
+		}
+
+		if sectionHdr.Type == uint32(elf.SHT_DYNAMIC) {
+			sectionHeaderBuff := new(bytes.Buffer)
+
+			// Rewrite the address
+			sectionHdr.Off = _offsetOfDynamic
+			sectionHdr.Addr = _offsetOfDynamic
+			sectionHdr.Size = _sizeOfDynamic
+
+			// Commit the write
+			if err := binary.Write(sectionHeaderBuff, binary.LittleEndian, sectionHdr); err != nil {
+				return err
+			}
+
+			if _, err := orbisElf.FinalFile.WriteAt(sectionHeaderBuff.Bytes(), sectionHeaderOffset); err != nil {
+				return err
+			}
+
+			break
+		}
+	}
+
+	return nil
+}

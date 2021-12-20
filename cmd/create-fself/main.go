@@ -105,6 +105,9 @@ func main() {
 	err = orbisElf.RewriteProgramHeaders()
 	check(err)
 
+	// Overwrite .dynamic section header to point to the new dynamic table
+	err = orbisElf.RewriteDynamicSectionHeader()
+
 	// Commit
 	err = orbisElf.FinalFile.Close()
 	check(err)
