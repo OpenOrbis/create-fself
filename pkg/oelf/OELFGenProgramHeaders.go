@@ -38,7 +38,20 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
 		if gnuRelroSegment != nil {
 			if progHeader.Type == elf.PT_LOAD && progHeader.Off == gnuRelroSegment.Off {
-				continue
+				if progHeader.Memsz > (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000) {
+					subtractSize := (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000)
+					progHeader.Off += subtractSize
+					progHeader.Vaddr += subtractSize
+					progHeader.Paddr = 0
+					if progHeader.Filesz < subtractSize {
+						progHeader.Filesz = 0
+					} else {
+						progHeader.Filesz -= subtractSize
+					}
+					progHeader.Memsz -= subtractSize
+				} else {
+					continue
+				}
 			}
 		}
 
