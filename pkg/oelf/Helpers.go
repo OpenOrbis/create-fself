@@ -1,6 +1,7 @@
 package oelf
 
 import (
+	"bytes"
 	"debug/elf"
 	"encoding/binary"
 	"errors"
@@ -91,6 +92,17 @@ func checkIfLibraryContainsSymbol(librarySymbols []elf.Symbol, symbolName string
 	return false
 }
 
+// getModuleNameFromLibrary
+func getModuleNameFromLibrary(libraryElf *elf.File) string {
+	section := libraryElf.Section(".rodata")
+	if section == nil {
+		return ""
+	}
+	moduleName, _ := section.Data()
+	n := bytes.IndexByte(moduleName[:], 0)
+	return string(moduleName[:n])
+}
+
 // intToByteArray takes a given integer and writes it into a byte array (little endian) and returns it.
 func intToByteArray(value int) []byte {
 	valueBuff := make([]byte, 4)
@@ -109,6 +121,18 @@ func contains(slice []string, element string) bool {
 	}
 
 	return false
+}
+
+// count takes a given slice and element, and checks if the element is present within the slice. Returns number of instances
+func count(slice []string, element string) int {
+	var count = 0
+	for _, v := range slice {
+		if v == element {
+			count = count + 1
+		}
+	}
+
+	return count
 }
 
 // writeNullBytes takes a given size and writes null bytes to the buffer. Returns the number of null bytes written.

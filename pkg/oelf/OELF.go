@@ -14,12 +14,14 @@ type OrbisElf struct {
 	ProgramHeaders []*elf.Prog
 	SectionHeaders []elf.Section64
 
-	LibraryName            string
-	ElfToConvertName       string
-	ElfToConvert           *elf.File
-	ModuleSymbolDictionary *OrderedMap
-	WrittenBytes           int
-	IsLibrary              bool
+	LibraryName             string
+	ElfToConvertName        string
+	ElfToConvert            *elf.File
+	LibrarySymbolDictionary *OrderedMap
+	ModuleList              []string
+	LibraryModuleDictionary *OrderedMap
+	WrittenBytes            int
+	IsLibrary               bool
 
 	FinalFile *os.File
 }
