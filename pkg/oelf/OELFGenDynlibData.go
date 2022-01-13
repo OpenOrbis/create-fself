@@ -16,19 +16,19 @@ import (
 
 // TableOffsets holds all necessary offsets and sizes of various tables that are referenced by the dynamic table.
 type TableOffsets struct {
-	linkingTable	  uint64
-	stringTable	   uint64
-	stringTableSz	 uint64
-	symbolTable	   uint64
-	symbolTableSz	 uint64
-	jumpTable		 uint64
-	jumpTableSz	   uint64
+	linkingTable      uint64
+	stringTable       uint64
+	stringTableSz     uint64
+	symbolTable       uint64
+	symbolTableSz     uint64
+	jumpTable         uint64
+	jumpTableSz       uint64
 	relocationTable   uint64
 	relocationTableSz uint64
-	hashTable		 uint64
-	hashTableSz	   uint64
-	dynamicTable	  uint64
-	dynamicTableSz	uint64
+	hashTable         uint64
+	hashTableSz       uint64
+	dynamicTable      uint64
+	dynamicTableSz    uint64
 }
 
 const (
@@ -41,68 +41,68 @@ const (
 
 // _moduleToLibDictionary contains a mapping of module names to library (prx) paths
 var _moduleToLibDictionary = map[string]string{
-	"libc":					   "libc.prx",
-	"libkernel":				  "libkernel.prx",
-	"libkernel_sys":			  "libkernel_sys.prx",
-	"libSceAjm":				  "libSceAjm.prx",
-	"libSceAppContent":		   "libSceAppContent.prx",
-	"libSceAudio3d":			  "libSceAudio3d.prx",
-	"libSceAudioIn":			  "libSceAudioIn.prx",
-	"libSceAudioOut":			 "libSceAudioOut.prx",
-	"libSceAvSetting":			"libSceAvSetting.prx",
-	"libSceCamera":			   "libSceCamera.prx",
-	"libSceCommonDialog":		 "libSceCommonDialog.prx",
-	"libSceConvertKeycode":	   "libSceConvertKeycode.prx",
-	"libSceFios2":				"libSceFios2.prx",
-	"libSceFont":				 "libSceFont-module.prx",
-	"libSceFontFt":			   "libSceFontFt-module.prx",
+	"libc":                       "libc.prx",
+	"libkernel":                  "libkernel.prx",
+	"libkernel_sys":              "libkernel_sys.prx",
+	"libSceAjm":                  "libSceAjm.prx",
+	"libSceAppContent":           "libSceAppContent.prx",
+	"libSceAudio3d":              "libSceAudio3d.prx",
+	"libSceAudioIn":              "libSceAudioIn.prx",
+	"libSceAudioOut":             "libSceAudioOut.prx",
+	"libSceAvSetting":            "libSceAvSetting.prx",
+	"libSceCamera":               "libSceCamera.prx",
+	"libSceCommonDialog":         "libSceCommonDialog.prx",
+	"libSceConvertKeycode":       "libSceConvertKeycode.prx",
+	"libSceFios2":                "libSceFios2.prx",
+	"libSceFont":                 "libSceFont-module.prx",
+	"libSceFontFt":               "libSceFontFt-module.prx",
 	"libSceGameCustomDataDialog": "libSceGameCustomDataDialog.prx",
-	"libSceGnmDriver":			"libSceGnmDriver.prx",
-	"libSceHttp":				 "libSceHttp.prx",
-	"libSceInvitationDialog":	 "libSceInvitationDialog.prx",
-	"libSceJpegDec":			  "libSceJpegDec.prx",
-	"libSceJpegEnc":			  "libSceJpegEnc.prx",
-	"libSceKeyboard":			 "libSceKeyboard.prx",
-	"libSceMouse":				"libSceMouse.prx",
-	"libSceNetCtl":			   "libSceNetCtl.prx",
-	"libSceNpCommon":			 "libSceNpCommon.prx",
-	"libSceNpParty":			  "libSceNpParty.prx",
-	"libSceNpTrophy":			 "libSceNpTrophy.prx",
-	"libSceNpUtility":			"libSceNpUtility.prx",
-	"libScePad":				  "libScePad.prx",
-	"libScePadTracker":		   "libScePadTracker.prx",
-	"libScePlayReady":			"libScePlayReady.prx",
-	"libScePngDec":			   "libScePngDec.prx",
-	"libScePngEnc":			   "libScePngEnc.prx",
-	"libSceSaveData":			 "libSceSaveData.prx",
-	"libSceSaveDataDialog":	   "libSceSaveDataDialog.prx",
-	"libSceScreenShot":		   "libSceScreenShot.prx",
-	"libSceShareUtility":		 "libSceShareUtility.prx",
-	"libSceSsl":				  "libSceSsl.prx",
-	"libSceSystemService":		"libSceSystemService.prx",
-	"libSceSysmodule":			"libSceSysmodule.prx",
-	"libSceSysUtil":			  "libSceSysUtil.prx",
-	"libSceUserService":		  "libSceUserService.prx",
-	"libSceVideodec":			 "libSceVideodec.prx",
+	"libSceGnmDriver":            "libSceGnmDriver.prx",
+	"libSceHttp":                 "libSceHttp.prx",
+	"libSceInvitationDialog":     "libSceInvitationDialog.prx",
+	"libSceJpegDec":              "libSceJpegDec.prx",
+	"libSceJpegEnc":              "libSceJpegEnc.prx",
+	"libSceKeyboard":             "libSceKeyboard.prx",
+	"libSceMouse":                "libSceMouse.prx",
+	"libSceNetCtl":               "libSceNetCtl.prx",
+	"libSceNpCommon":             "libSceNpCommon.prx",
+	"libSceNpParty":              "libSceNpParty.prx",
+	"libSceNpTrophy":             "libSceNpTrophy.prx",
+	"libSceNpUtility":            "libSceNpUtility.prx",
+	"libScePad":                  "libScePad.prx",
+	"libScePadTracker":           "libScePadTracker.prx",
+	"libScePlayReady":            "libScePlayReady.prx",
+	"libScePngDec":               "libScePngDec.prx",
+	"libScePngEnc":               "libScePngEnc.prx",
+	"libSceSaveData":             "libSceSaveData.prx",
+	"libSceSaveDataDialog":       "libSceSaveDataDialog.prx",
+	"libSceScreenShot":           "libSceScreenShot.prx",
+	"libSceShareUtility":         "libSceShareUtility.prx",
+	"libSceSsl":                  "libSceSsl.prx",
+	"libSceSystemService":        "libSceSystemService.prx",
+	"libSceSysmodule":            "libSceSysmodule.prx",
+	"libSceSysUtil":              "libSceSysUtil.prx",
+	"libSceUserService":          "libSceUserService.prx",
+	"libSceVideodec":             "libSceVideodec.prx",
 	"libSceVideoCoreInterface":   "libSceVideoCoreInterface.prx",
-	"libSceVideoOut":			 "libSceVideoOut.prx",
-	"libSceVoice":				"libSceVoice.prx",
-	"libSceWebBrowserDialog":	 "libSceWebBrowserDialog.prx",
-	"libSceZlib":				 "libSceZlib.prx",
-	"libSceFreeType":			 "libSceFreeType.prx",
+	"libSceVideoOut":             "libSceVideoOut.prx",
+	"libSceVoice":                "libSceVoice.prx",
+	"libSceWebBrowserDialog":     "libSceWebBrowserDialog.prx",
+	"libSceZlib":                 "libSceZlib.prx",
+	"libSceFreeType":             "libSceFreeType.prx",
 }
 
 var (
-	_libraryOffsets		 []uint64
+	_libraryOffsets         []uint64
 	_importedLibraryOffsets []uint64
-	_offsetOfProjectName	uint64
-	_offsetOfFileName	   uint64
-	_offsetOfNidTable	   uint64
-	_offsetOfDynlibData	 uint64
-	_offsetOfDynamic		uint64
+	_offsetOfProjectName    uint64
+	_offsetOfFileName       uint64
+	_offsetOfNidTable       uint64
+	_offsetOfDynlibData     uint64
+	_offsetOfDynamic        uint64
 
 	_sizeOfDynlibData uint64
-	_sizeOfDynamic	uint64
+	_sizeOfDynamic    uint64
 	_sizeOfStrTable   uint64
 
 	_needSceLibcIndex int
@@ -200,12 +200,12 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 			}
 		}
 	}
-	var reorderedMap = NewOrderedMap()
+	reorderedMap := NewOrderedMap()
 	for _, module := range orbisElf.ModuleList {
 		// Even if it's not an imported library,
 		// It is necessary to add since LibrarySymbolDictionary
 		// keys are used. This would preserve order and not
-		// break backwards compatibility 
+		// break backwards compatibility
 		symbolList := orbisElf.LibrarySymbolDictionary.Get(module)
 		reorderedMap.Set(module, symbolList)
 	}
@@ -231,7 +231,6 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 	// Iterate the symbol table and cross-reference the shared object files to find which library they belong to, and
 	// add them to the dictionary.
 	symbols, err := orbisElf.ElfToConvert.Symbols()
-
 	if err != nil {
 		return err
 	}
@@ -293,7 +292,14 @@ func (orbisElf *OrbisElf) GenerateDynlibData(sdkPath string, libPath string) err
 
 	// Write linking tables
 	tableOffsets.stringTable = segmentSize
-	tableOffsets.stringTableSz, err = writeStringTable(orbisElf, orbisElf.ElfToConvertName, orbisElf.LibraryName, orbisElf.ModuleList, orbisElf.LibrarySymbolDictionary, &segmentData)
+	tableOffsets.stringTableSz, err = writeStringTable(
+		orbisElf,
+		orbisElf.ElfToConvertName,
+		orbisElf.LibraryName,
+		orbisElf.ModuleList,
+		orbisElf.LibrarySymbolDictionary,
+		&segmentData,
+	)
 	if err != nil {
 		return err
 	}
@@ -359,7 +365,14 @@ func writeFingerprint(fingerprint string, segmentData *[]byte) uint64 {
 
 // writeStringTable writes the module table, project meta data, and NID table to segmentData. Returns the number of bytes
 // written.
-func writeStringTable(orbisElf *OrbisElf, projectName string, libName string, moduleList []string, librarySymbolDictionary *OrderedMap, segmentData *[]byte) (uint64, error) {
+func writeStringTable(
+	orbisElf *OrbisElf,
+	projectName string,
+	libName string,
+	moduleList []string,
+	librarySymbolDictionary *OrderedMap,
+	segmentData *[]byte,
+) (uint64, error) {
 	_sizeOfStrTable = 0
 
 	// Write the first null module entry
@@ -411,7 +424,7 @@ func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, 
 		moduleTableBuff.WriteString(libName)
 	}
 
-	var runningModuleList = make([]string, 0)
+	runningModuleList := make([]string, 0)
 	// Write module list
 	for _, moduleStr := range moduleList {
 		moduleStr = strings.Replace(moduleStr, "_stub", "", 1)
@@ -578,7 +591,8 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 
 		for _, symbol := range moduleSymbols {
 			// Only export global symbols that we have values for
-			if ((symbol.Info>>4&0xf) == uint8(elf.STB_GLOBAL) || (symbol.Info>>4&0xf) == uint8(elf.STB_WEAK)) && symbol.Value != 0 {
+			if ((symbol.Info>>4&0xf) == uint8(elf.STB_GLOBAL) || (symbol.Info>>4&0xf) == uint8(elf.STB_WEAK)) &&
+				symbol.Value != 0 {
 				nidTableBuff.WriteString(buildNIDEntry(symbol.Name, moduleId, moduleId))
 			}
 		}
@@ -713,7 +727,8 @@ func writeSymbolTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 
 		for _, symbol := range moduleSymbols {
 			// Only export global symbols that we have values for
-			if ((symbol.Info>>4&0xf) == uint8(elf.STB_GLOBAL) || (symbol.Info>>4&0xf) == uint8(elf.STB_WEAK)) && symbol.Value != 0 {
+			if ((symbol.Info>>4&0xf) == uint8(elf.STB_GLOBAL) || (symbol.Info>>4&0xf) == uint8(elf.STB_WEAK)) &&
+				symbol.Value != 0 {
 				_ = binary.Write(symbolTableBuff, binary.LittleEndian, elf.Sym64{
 					Name:  uint32(_offsetOfNidTable + uint64(numSymbols*0x10)),
 					Info:  symbol.Info,
@@ -763,7 +778,6 @@ func writeRelocationTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 	// Get the old relocation procedure linkage table
 	if oldRelaPltTableSection := orbisElf.ElfToConvert.Section(".rela.plt"); oldRelaPltTableSection != nil {
 		oldRelaPltTableData, err := oldRelaPltTableSection.Data()
-
 		if err != nil {
 			return 0
 		}
@@ -777,7 +791,7 @@ func writeRelocationTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 			oldRelaPltTableData = oldRelaPltTableData[0x18:]
 
 			_ = binary.Write(relocationTableBuff, binary.LittleEndian, elf.Rela64{
-				Off:	rOffset,
+				Off:    rOffset,
 				Info:   rInfo + (1 << 32), // Add one to the symbol index to account for STT_SECTION
 				Addend: int64(rAddend),
 			})
@@ -787,7 +801,6 @@ func writeRelocationTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 	// Get the old relocation dynamic table
 	if oldRelaDynTableSection := orbisElf.ElfToConvert.Section(".rela.dyn"); oldRelaDynTableSection != nil {
 		oldRelaDynTableData, err := oldRelaDynTableSection.Data()
-
 		if err != nil {
 			return 0
 		}
@@ -801,7 +814,7 @@ func writeRelocationTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 			oldRelaDynTableData = oldRelaDynTableData[0x18:]
 
 			_ = binary.Write(relocationTableBuff, binary.LittleEndian, elf.Rela64{
-				Off:	rOffset,
+				Off:    rOffset,
 				Info:   rInfo + (1 << 32), // Add one to the symbol index to account for STT_SECTION
 				Addend: int64(rAddend),
 			})
@@ -1033,7 +1046,7 @@ func writeDynamicEntry(dynamicTable io.Writer, tag uint64, value uint64) {
 func writeObjectRelaEntry(relaTable io.Writer, offset uint64, symbolIndex int) {
 	// Create the entry
 	_ = binary.Write(relaTable, binary.LittleEndian, elf.Rela64{
-		Off:	offset,
+		Off:    offset,
 		Info:   uint64((symbolIndex << 32) + R_AMD64_64),
 		Addend: 0,
 	})
