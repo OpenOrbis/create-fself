@@ -514,7 +514,7 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 // Currently assumes module (and thus library) ID will always be < 26.
 // Currently matches library ID to module ID.
 // Returns the final constructed string of the NID entry.
-func buildNIDEntry(symbolName string, moduleId int) string {
+func buildNIDEntry(symbolName string, libraryId int, moduleId int) string {
 	nid := ""
 
 	// Allow unknown symbols and allow arbitrary NIDs if the prefix is `__PS4_NID_`
@@ -526,11 +526,11 @@ func buildNIDEntry(symbolName string, moduleId int) string {
 		nid = calculateNID(symbolName)
 	}
 
-	// Format: [NID Hash] + '#' + [Module Index] + '#' + [Library Index]
+	// Format: [NID Hash] + '#' + [Library Index] + "#" + [Module Index]
+	libraryIdChar := string(_indexEncodingTable[libraryId])
 	moduleIdChar := string(_indexEncodingTable[moduleId])
-	libraryIdChar := moduleIdChar
 
-	nid += "#" + moduleIdChar + "#" + libraryIdChar + "\x00"
+	nid += "#" + libraryIdChar + "#" + moduleIdChar + "\x00"
 	return nid
 }
 
