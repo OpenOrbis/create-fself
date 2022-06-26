@@ -204,7 +204,7 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 	var rolsd = NewOrderedMap()
 
 	for _, module := range orbisElf.ModuleList {
-		rolsd.Set(module, orbisElf.LibrarySymbolDictionary.Get(module))
+		rolsd.Set(module, []string{})
 	}
 
 
