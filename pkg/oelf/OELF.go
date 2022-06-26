@@ -17,7 +17,9 @@ type OrbisElf struct {
 	LibraryName            string
 	ElfToConvertName       string
 	ElfToConvert           *elf.File
-	ModuleSymbolDictionary *OrderedMap
+	LibrarySymbolDictionary *OrderedMap
+	ModuleList []string
+	LibraryModuleDictionary *OrderedMap
 	WrittenBytes           int
 	IsLibrary              bool
 
