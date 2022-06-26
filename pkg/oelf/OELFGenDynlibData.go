@@ -211,7 +211,7 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 	for _, library := range orbisElf.LibrarySymbolDictionary.Keys() {
 		libNa := library.(string)
 		if !contains(orbisElf.ModuleList, libNa) {
-			rolsd.Set(libNa, orbisElf.LibraryModuleDictionary.Get(libNa))
+			rolsd.Set(libNa, []string{})
 		}
 	}
 
@@ -534,13 +534,18 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 		}
 
 		for idx, library := range libraries {
-			libSyms := orbisElf.LibrarySymbolDictionary.Get(library).([]string)
-			if contains(libSyms, symbol.Name) {
-				libraryName = library.(string)
+			libName := library.(string)
+			libSyms := orbisElf.LibrarySymbolDictionary.Get(libName)
+			if libSyms == nil {
+				continue
+			}
+			if contains(libSyms.([]string), symbol.Name) {
+				libraryName = libName
 				symbolLibraryIndex = idx
 				break
 			}
 		}
+
 
 		if symbolLibraryIndex < 0 {
 			return 0, errors.New(fmt.Sprintf("missing library for symbol (%s)", symbol.Name))
@@ -559,7 +564,7 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 		}
 
 		// TODO: Comment out when not debugging
-		fmt.Printf("[%s;] %s: %d %s: %d \n", symbol.Name, moduleName, symbolModuleIndex, libraryName, symbolLibraryIndex)
+		// fmt.Printf("[%s;] %s: %d %s: %d \n", symbol.Name, moduleName, symbolModuleIndex, libraryName, symbolLibraryIndex)
 
 		// Build the NID and insert it into the table
 		nidTableBuff.WriteString(buildNIDEntry(symbol.Name, 1+symbolLibraryIndex, 1+symbolModuleIndex))
