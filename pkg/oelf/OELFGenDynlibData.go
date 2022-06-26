@@ -610,7 +610,7 @@ func buildNIDEntry(symbolName string, libraryId int, moduleId int) string {
 	libraryIdChar := string(_indexEncodingTable[libraryId])
 	moduleIdChar := string(_indexEncodingTable[moduleId])
 
-	nid += "#" + moduleIdChar + "#" + libraryIdChar + "\x00"
+	nid += "#" + libraryIdChar + "#" + moduleIdChar + "\x00"
 	return nid
 }
 
