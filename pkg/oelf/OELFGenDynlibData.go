@@ -535,11 +535,8 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 
 		for idx, library := range libraries {
 			libName := library.(string)
-			libSyms := orbisElf.LibrarySymbolDictionary.Get(libName)
-			if libSyms == nil {
-				continue
-			}
-			if contains(libSyms.([]string), symbol.Name) {
+			libSyms := orbisElf.LibrarySymbolDictionary.Get(libName).([]string)
+			if contains(libSyms, symbol.Name) {
 				libraryName = libName
 				symbolLibraryIndex = idx
 				break
