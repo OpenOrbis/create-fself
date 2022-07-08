@@ -422,7 +422,7 @@ func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, 
 		moduleOffset := uint64(len(moduleTableBuff.Bytes())) + 1
 
 
-		_importedModuleOffsets = append(_importedLibraryOffsets, moduleOffset)
+		_importedModuleOffsets = append(_importedModuleOffsets, moduleOffset)
 
 		// Assume library name is module name too
 		_importedLibraryOffsets = append(_importedLibraryOffsets, moduleOffset)
