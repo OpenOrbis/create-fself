@@ -94,7 +94,8 @@ var _moduleToLibDictionary = map[string]string{
 
 var (
 	_libraryOffsets []uint64
-	_moduleOffsets  []uint64
+	_importedLibraryOffsets []uint64
+	_importedModuleOffsets  []uint64
 
 	_offsetOfProjectName uint64
 	_offsetOfFileName    uint64
@@ -133,7 +134,10 @@ func OpenLibrary(name string, sdkPath string, libPath string) (*elf.File, error)
 func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPath string) error {
 	var libraryObjs []*elf.File
 
-	orbisElf.ModuleSymbolDictionary = NewOrderedMap()
+	orbisElf.LibrarySymbolDictionary = NewOrderedMap()
+	orbisElf.LibraryModuleDictionary = NewOrderedMap()
+
+	orbisElf.ModuleList = make([]string, 0, 10)
 
 	// Get all the imported libraries, create dictionary keys for them, and open them for symbol searching
 	libraries, err := orbisElf.ElfToConvert.ImportedLibraries()
@@ -155,7 +159,10 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 	// Ensure libkernel is the first library
 	if libraryObj, err := OpenLibrary("libkernel.so", sdkPath, libPath); err == nil {
 		libraryObjs = append(libraryObjs, libraryObj)
-		orbisElf.ModuleSymbolDictionary.Set("libkernel", []string{})
+		orbisElf.LibrarySymbolDictionary.Set("libkernel", []string{})
+
+		orbisElf.LibraryModuleDictionary.Set("libkernel", "libkernel")
+		orbisElf.ModuleList = append(orbisElf.ModuleList, "libkernel")
 	} else {
 		return err
 	}
@@ -176,10 +183,41 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 
 		// Add it to the dictionary
 		purifiedLibrary := strings.Replace(library, ".so", "", 1)
-		orbisElf.ModuleSymbolDictionary.Set(purifiedLibrary, []string{})
+		orbisElf.LibrarySymbolDictionary.Set(purifiedLibrary, []string{})
+		
+
+		// Assume module name is the library name
+		moduleName := purifiedLibrary
+		// Check if it is a weird library hidden inside a module
+		if mn, ok := _extraLibraryToModule[purifiedLibrary]; ok {
+			moduleName = mn
+		} 
+
+		// Prevent duplicate entries
+		if !contains(orbisElf.ModuleList, moduleName) {
+			orbisElf.ModuleList = append(orbisElf.ModuleList, moduleName)
+		}
+
+		orbisElf.LibraryModuleDictionary.Set(purifiedLibrary, moduleName)
 	}
 
-	// Create a cache of libraries to symbols for better performance
+	var rolsd = NewOrderedMap()
+
+	for _, module := range orbisElf.ModuleList {
+		rolsd.Set(module, []string{})
+	}
+
+
+	for _, library := range orbisElf.LibrarySymbolDictionary.Keys() {
+		libNa := library.(string)
+		if !contains(orbisElf.ModuleList, libNa) {
+			rolsd.Set(libNa, []string{})
+		}
+	}
+
+	orbisElf.LibrarySymbolDictionary = rolsd
+
+	// Create a cache of libraries to symbols for better performancek
 	librarySymbolCache := make(map[*elf.File][]elf.Symbol)
 
 	for _, libraryObj := range libraryObjs {
@@ -213,10 +251,10 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 			if foundSymbol {
 				library := strings.Replace(libraries[i], ".so", "", 1)
 
-				symbolList := orbisElf.ModuleSymbolDictionary.Get(library).([]string)
+				symbolList := orbisElf.LibrarySymbolDictionary.Get(library).([]string)
 				symbolList = append(symbolList, symbolName)
 
-				orbisElf.ModuleSymbolDictionary.Set(library, symbolList)
+				orbisElf.LibrarySymbolDictionary.Set(library, symbolList)
 			}
 		}
 	}
@@ -255,7 +293,7 @@ func (orbisElf *OrbisElf) GenerateDynlibData(sdkPath string, libPath string) err
 
 	// Write linking tables
 	tableOffsets.stringTable = segmentSize
-	tableOffsets.stringTableSz, err = writeStringTable(orbisElf, orbisElf.ElfToConvertName, orbisElf.LibraryName, orbisElf.ModuleSymbolDictionary, &segmentData)
+	tableOffsets.stringTableSz, err = writeStringTable(orbisElf, orbisElf.ElfToConvertName, orbisElf.LibraryName, orbisElf.ModuleList, orbisElf.LibrarySymbolDictionary, &segmentData)
 	if err != nil {
 		return err
 	}
@@ -321,13 +359,13 @@ func writeFingerprint(fingerprint string, segmentData *[]byte) uint64 {
 
 // writeStringTable writes the module table, project meta data, and NID table to segmentData. Returns the number of bytes
 // written.
-func writeStringTable(orbisElf *OrbisElf, projectName string, libName string, moduleSymbolDictionary *OrderedMap, segmentData *[]byte) (uint64, error) {
+func writeStringTable(orbisElf *OrbisElf, projectName string, libName string, moduleList []string, librarySymbolDictionary *OrderedMap, segmentData *[]byte) (uint64, error) {
 	_sizeOfStrTable = 0
 
 	// Write the first null module entry
 	writeNullBytes(segmentData, 1)
 
-	_sizeOfStrTable += writeModuleTable(moduleSymbolDictionary, segmentData)
+	_sizeOfStrTable += writeModuleTable(moduleList, librarySymbolDictionary, segmentData)
 	_offsetOfProjectName = _sizeOfStrTable + 1 // Account for null entry
 
 	_sizeOfStrTable += writeProjectMetaData(projectName, libName, segmentData)
@@ -349,15 +387,14 @@ func writeStringTable(orbisElf *OrbisElf, projectName string, libName string, mo
 
 // writeModuleTable writes the module string table using the given moduleSymbolDictionary to segmentData. Returns the
 // number of bytes written.
-func writeModuleTable(moduleSymbolDictionary *OrderedMap, segmentData *[]byte) uint64 {
+func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, segmentData *[]byte) uint64 {
 	moduleTableBuff := new(bytes.Buffer)
 
-	modules := moduleSymbolDictionary.Keys()
+	libraries := librarySymbolDictionary.Keys()
 
-	// Write library list
-	for _, module := range modules {
-		moduleStr := module.(string)
-		moduleStr = strings.Replace(moduleStr, "_stub", "", 1)
+	// Write library prx list
+	for _, module := range moduleList {
+		moduleStr := strings.Replace(module, "_stub", "", 1)
 
 		// Record the offset of the library for processing later
 		libName := _moduleToLibDictionary[moduleStr]
@@ -375,18 +412,40 @@ func writeModuleTable(moduleSymbolDictionary *OrderedMap, segmentData *[]byte) u
 		moduleTableBuff.WriteString(libName)
 	}
 
+
 	// Write module list
-	for _, module := range modules {
-		moduleStr := module.(string)
-		moduleStr = strings.Replace(moduleStr, "_stub", "", 1)
+	for _, module := range moduleList {
+		moduleStr := strings.Replace(module, "_stub", "", 1)
 
 		// Record the offset of the library for processing later
 		moduleName := moduleStr + "\x00"
 		moduleOffset := uint64(len(moduleTableBuff.Bytes())) + 1
 
+
+		_importedModuleOffsets = append(_importedModuleOffsets, moduleOffset)
+
+		// Assume library name is module name too
+		_importedLibraryOffsets = append(_importedLibraryOffsets, moduleOffset)
+
 		// Add to the table
-		_moduleOffsets = append(_moduleOffsets, moduleOffset)
 		moduleTableBuff.WriteString(moduleName)
+	}
+
+	for _, library := range libraries {
+		libraryStr := library.(string)
+		libraryStr = strings.Replace(libraryStr, "stub", "", 1)
+		
+		if contains(moduleList, libraryStr) {
+			continue
+		}
+
+		libraryName := libraryStr + "\x00"
+		libraryOffset := uint64(len(moduleTableBuff.Bytes())) + 1
+
+		_importedLibraryOffsets = append(_importedLibraryOffsets, libraryOffset)
+
+		// Add to the table
+		moduleTableBuff.WriteString(libraryName)
 	}
 
 	// The filename of the project will proceed these entries in the string table, and is needed for dynamic table
@@ -448,7 +507,8 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 	// Iterate the symbol table of the input ELF to generate entries. We don't need to check err here because we've already
 	// checked it before we reach this point.
 	symbols, _ := orbisElf.ElfToConvert.DynamicSymbols()
-	modules := orbisElf.ModuleSymbolDictionary.Keys()
+	libraries := orbisElf.LibrarySymbolDictionary.Keys()
+	modules := orbisElf.ModuleList
 
 	// Get libc index for Need_sceLibc
 	libcModuleIndex := -1
@@ -462,34 +522,54 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 
 	// Each symbol might need an NID entry
 	for _, symbol := range symbols {
+		symbolLibraryIndex := -1
 		symbolModuleIndex := -1
+		libraryName := ""
+		moduleName := ""
+
 
 		// Skip symbols that have a valid section index - they're defined in the ELF and are not external
 		if symbol.Section != elf.SHN_UNDEF {
 			continue
 		}
 
-		// Check which library this symbol is from
-		for moduleIndex, module := range modules {
-			moduleSymbols := orbisElf.ModuleSymbolDictionary.Get(module).([]string)
+		for idx, library := range libraries {
+			libName := library.(string)
+			libSyms := orbisElf.LibrarySymbolDictionary.Get(libName).([]string)
+			if contains(libSyms, symbol.Name) {
+				libraryName = libName
+				symbolLibraryIndex = idx
+				break
+			}
+		}
 
-			if contains(moduleSymbols, symbol.Name) {
-				symbolModuleIndex = moduleIndex
+
+		if symbolLibraryIndex < 0 {
+			return 0, errors.New(fmt.Sprintf("missing library for symbol (%s)", symbol.Name))
+		}
+
+		moduleName = orbisElf.LibraryModuleDictionary.Get(libraryName).(string)
+		for idx, module := range modules {
+			if moduleName == module {
+				symbolModuleIndex = idx
 				break
 			}
 		}
 
 		if symbolModuleIndex < 0 {
-			return 0, errors.New(fmt.Sprintf("missing module for symbol (%s)", symbol.Name))
+			return 0, errors.New(fmt.Sprintf("missing module %s for symbol (%s)", moduleName, symbol.Name))
 		}
 
+		// TODO: Comment out when not debugging
+		// fmt.Printf("[%s;] %s: %d %s: %d \n", symbol.Name, moduleName, symbolModuleIndex, libraryName, symbolLibraryIndex)
+
 		// Build the NID and insert it into the table
-		nidTableBuff.WriteString(buildNIDEntry(symbol.Name, 1+symbolModuleIndex))
+		nidTableBuff.WriteString(buildNIDEntry(symbol.Name, 1+symbolLibraryIndex, 1+symbolModuleIndex))
 	}
 
 	if libcModuleIndex >= 0 {
 		// Add an additional symbol for Need_sceLibc
-		nidTableBuff.WriteString(buildNIDEntry("Need_sceLibc", 1+libcModuleIndex))
+		nidTableBuff.WriteString(buildNIDEntry("Need_sceLibc", 1+libcModuleIndex, 1+libcModuleIndex))
 	}
 
 	// Add exported symbols for libraries
@@ -500,7 +580,7 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 		for _, symbol := range moduleSymbols {
 			// Only export global symbols that we have values for
 			if ((symbol.Info>>4&0xf) == uint8(elf.STB_GLOBAL) || (symbol.Info>>4&0xf) == uint8(elf.STB_WEAK)) && symbol.Value != 0 {
-				nidTableBuff.WriteString(buildNIDEntry(symbol.Name, moduleId))
+				nidTableBuff.WriteString(buildNIDEntry(symbol.Name, moduleId, moduleId))
 			}
 		}
 	}
@@ -514,7 +594,7 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 // Currently assumes module (and thus library) ID will always be < 26.
 // Currently matches library ID to module ID.
 // Returns the final constructed string of the NID entry.
-func buildNIDEntry(symbolName string, moduleId int) string {
+func buildNIDEntry(symbolName string, libraryId int, moduleId int) string {
 	nid := ""
 
 	// Allow unknown symbols and allow arbitrary NIDs if the prefix is `__PS4_NID_`
@@ -526,11 +606,11 @@ func buildNIDEntry(symbolName string, moduleId int) string {
 		nid = calculateNID(symbolName)
 	}
 
-	// Format: [NID Hash] + '#' + [Module Index] + '#' + [Library Index]
+	// Format: [NID Hash] + '#' + [Library Index] + "#" + [Module Index]
+	libraryIdChar := string(_indexEncodingTable[libraryId])
 	moduleIdChar := string(_indexEncodingTable[moduleId])
-	libraryIdChar := moduleIdChar
 
-	nid += "#" + moduleIdChar + "#" + libraryIdChar + "\x00"
+	nid += "#" + libraryIdChar + "#" + moduleIdChar + "\x00"
 	return nid
 }
 
@@ -602,8 +682,8 @@ func writeSymbolTable(orbisElf *OrbisElf, segmentData *[]byte) uint64 {
 
 	}
 
-	modules := orbisElf.ModuleSymbolDictionary.Keys()
-
+	// Assume library name is module name
+	modules := orbisElf.LibrarySymbolDictionary.Keys()
 	// Get libc index for Need_sceLibc
 	libcModuleIndex := -1
 
@@ -898,7 +978,7 @@ func writeDynamicTable(orbisElf *OrbisElf, tableOffsets *TableOffsets, segmentDa
 	}
 
 	// Imported modules
-	for i, moduleOffset := range _moduleOffsets {
+	for i, moduleOffset := range _importedModuleOffsets {
 		moduleId := uint16(1 + i)
 		moduleValue := makeModuleTagValue(uint32(moduleOffset), 1, 1, moduleId)
 		writeDynamicEntry(dynamicTableBuff, DT_SCE_IMPORT_MODULE, moduleValue)
@@ -914,9 +994,9 @@ func writeDynamicTable(orbisElf *OrbisElf, tableOffsets *TableOffsets, segmentDa
 	}
 
 	// Imported libraries
-	for i, moduleOffset := range _moduleOffsets {
+	for i, libraryOffset := range _importedLibraryOffsets {
 		libraryId := uint16(1 + i)
-		libraryValue := makeLibTagValue(uint32(moduleOffset), 1, libraryId)
+		libraryValue := makeLibTagValue(uint32(libraryOffset), 1, libraryId)
 		libraryAttr := makeLibAttrTagValue(0x9, libraryId)
 
 		writeDynamicEntry(dynamicTableBuff, DT_SCE_IMPORT_LIB, libraryValue)
