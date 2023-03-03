@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -116,7 +117,13 @@ var (
 ////
 
 func OpenLibrary(name string, sdkPath string, libPath string) (*elf.File, error) {
-	libDirs := append([]string{sdkPath + "/lib"}, strings.Split(libPath, ":")...)
+	var libDelimiter string
+	if runtime.GOOS == "windows" {
+		libDelimiter = ";"
+	} else {
+		libDelimiter = ":"
+	}
+	libDirs := append([]string{sdkPath + "/lib"}, strings.Split(libPath, libDelimiter)...)
 	var err error
 	var lib *elf.File
 	for _, libDir := range libDirs {
