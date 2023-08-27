@@ -38,7 +38,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
 		if gnuRelroSegment != nil {
 			if progHeader.Type == elf.PT_LOAD && progHeader.Off == gnuRelroSegment.Off {
-				if progHeader.Memsz > (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000) {
+				if progHeader.Memsz > (gnuRelroSegment.Memsz+0x3fff) & ^uint64(0x4000) {
 					subtractSize := (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000)
 					progHeader.Off += subtractSize
 					progHeader.Vaddr += subtractSize
@@ -156,6 +156,11 @@ func (orbisElf *OrbisElf) RewriteProgramHeaders() error {
 		// Calculate the offset to write to by indexing into the program header table
 		writeOffset := int64(programHeaderTable + (i * 0x38))
 
+		alignment := progHeader.Align
+		if uint32(progHeader.Type) == 0x7 {
+			alignment = 0x20
+		}
+
 		// Write the structure into a buffer
 		header := elf.Prog64{
 			Type:   uint32(progHeader.Type),
@@ -165,7 +170,7 @@ func (orbisElf *OrbisElf) RewriteProgramHeaders() error {
 			Paddr:  progHeader.Paddr,
 			Filesz: progHeader.Filesz,
 			Memsz:  progHeader.Memsz,
-			Align:  progHeader.Align,
+			Align:  alignment,
 		}
 
 		if err := binary.Write(progHeaderBuff, binary.LittleEndian, header); err != nil {
