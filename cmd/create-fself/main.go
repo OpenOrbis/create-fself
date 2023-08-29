@@ -44,7 +44,7 @@ func main() {
 
 	// Optional flags
 	outputFilePath := flag.String("out", "", "output OELF path")
-	sdkVer := flag.Int("sdkver", 0x4508101, "SDK version integer")
+	sdkVer := flag.Int("sdkver", 0x1000051, "SDK version integer")
 	pType := flag.String("ptype", "", "program type {fake, npdrm_exec, npdrm_dynlib, system_exec, system_dynlib, host_kernel, secure_module, secure_kernel}")
 	authInfo := flag.String("authinfo", "", "authentication info")
 	paid := flag.Int64("paid", 0x3800000000000011, "program authentication ID")
