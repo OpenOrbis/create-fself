@@ -37,7 +37,7 @@ const (
 	_nidSuffixKey = "518D64A635DED8C1E6B039B1C3E55230"
 
 	// _indexEncodingTable provides the encoding table for module indices that are appended to the end of NIDs.
-	_indexEncodingTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	_indexEncodingTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-"
 )
 
 // _moduleToLibDictionary contains a mapping of module names to library (prx) paths
