@@ -27,6 +27,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 
 	// Get GNU_RELRO header pre-emptively (we'll need to check it to eliminate duplicate PT_LOAD headers)
 	gnuRelroSegment := orbisElf.getProgramHeader(elf.PT_GNU_RELRO, elf.PF_R)
+	relroAlignedMemsz := align(gnuRelroSegment.Memsz, 0x4000);
 
 	// First pass: drop program headers that we don't need and copy all others
 	for _, progHeader := range orbisElf.ElfToConvert.Progs {
@@ -38,8 +39,8 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
 		if gnuRelroSegment != nil {
 			if progHeader.Type == elf.PT_LOAD && progHeader.Off == gnuRelroSegment.Off {
-				if progHeader.Memsz > (gnuRelroSegment.Memsz+0x3fff) & ^uint64(0x4000) {
-					subtractSize := (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000)
+				if progHeader.Memsz > relroAlignedMemsz {
+					subtractSize := relroAlignedMemsz
 					progHeader.Off += subtractSize
 					progHeader.Vaddr += subtractSize
 					progHeader.Paddr = 0
@@ -297,4 +298,9 @@ func (s programHeaderList) Swap(i int, j int) {
 // Less uses the getProgramHeaderPriority() function to sort the list by priority.
 func (s programHeaderList) Less(i int, j int) bool {
 	return getProgramHeaderPriority(progHeaderTypeOrder, s[i].ProgHeader.Type, s[i].ProgHeader.Flags) < getProgramHeaderPriority(progHeaderTypeOrder, s[j].Type, s[j].Flags)
+}
+
+// align takes a given int and aligns it to a given value. Returns the aligned value.
+func align(val uint64, align uint64) uint64 {
+	return (val + (align - 1)) & ^(align - 1)
 }
