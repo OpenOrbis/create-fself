@@ -6,9 +6,28 @@ import (
 	"encoding/binary"
 	"math"
 	"sort"
+	"strings"
 )
 
 type programHeaderList []*elf.Prog
+
+func getFirstRwDataSection(e *elf.File) *elf.Section {
+	for _, s := range e.Sections {
+		if strings.HasPrefix(s.Name, ".data") && s.Name != ".data.rel.ro" {
+			return s
+		}
+	}
+	return nil
+}
+func getLastRwDataSection(e *elf.File) *elf.Section {
+	for i := len(e.Sections) - 1; i >= 0; i-- {
+		s := e.Sections[i]
+		if strings.HasPrefix(s.Name, ".data") && s.Name != ".data.rel.ro" {
+			return s
+		}
+	}
+	return nil
+}
 
 // GenerateProgramHeaders parses the input ELF's section header table to generate updated program headers.
 // Returns nil.
@@ -17,10 +36,17 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	// TODO: Verify these sections exist in OrbisElf.ValidateInputELF()
 	textSection := orbisElf.ElfToConvert.Section(".text")
 	relroSection := orbisElf.ElfToConvert.Section(".data.rel.ro")
-	dataSection := orbisElf.ElfToConvert.Section(".data")
-	bssSection := orbisElf.ElfToConvert.Section(".bss")
 	procParamSection := orbisElf.ElfToConvert.Section(".data.sce_process_param")
+	bssSection := orbisElf.ElfToConvert.Section(".bss")
 
+	firstDataSection := getFirstRwDataSection(orbisElf.ElfToConvert)
+	lastDataSection := getLastRwDataSection(orbisElf.ElfToConvert)
+	allDataFilesz := (lastDataSection.Offset - firstDataSection.Offset) + lastDataSection.Size
+	allDataMemsz := (lastDataSection.Addr - firstDataSection.Addr) + lastDataSection.Size
+
+	if bssSection != nil {
+		allDataMemsz += align(bssSection.Size, 16);
+	}
 	if orbisElf.IsLibrary {
 		procParamSection = orbisElf.ElfToConvert.Section(".data.sce_module_param")
 	}
@@ -89,7 +115,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 
 			// We need to fill the hole between the SCE_RELRO segment and the PT_LOAD segment for .data. Since
 			// .data.sce_process_param should be the first thing in the data segment, we can use this to calculate.
-			expandedSize := procParamSection.Offset - progHeader.Off
+			expandedSize := firstDataSection.Offset - progHeader.Off
 			progHeader.Filesz = expandedSize
 			progHeader.Memsz = expandedSize
 			progHeader.Align = 0x4000
@@ -110,23 +136,13 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 				}
 			}
 
-			// PT_LOAD for data needs to be shifted to contain SCE specific data
+			// PT_LOAD for read-write data must contain SCE specific data and any read-write `.data` sections
 			if progHeader.Flags == (elf.PF_R | elf.PF_W) {
-				// We'll get the size by subtracting the proc param offset from data's offset so we get padding for free, which the
-				// header size will not provide.
-				dataSize := (dataSection.Offset - procParamSection.Offset) + dataSection.Size
-				dataMemSize := (dataSection.Addr - procParamSection.Addr) + dataSection.Size
-
-				// Also check for .bss - if it exists, factor it into the size
-				if bssSection != nil {
-					dataMemSize += (bssSection.Addr - (dataSection.Addr + dataSection.Size)) + bssSection.Size
-				}
-
-				progHeader.Off = procParamSection.Offset
-				progHeader.Vaddr = procParamSection.Addr
-				progHeader.Paddr = procParamSection.Addr
-				progHeader.Filesz = dataSize
-				progHeader.Memsz = dataMemSize
+				progHeader.Off = firstDataSection.Offset
+				progHeader.Vaddr = firstDataSection.Addr
+				progHeader.Paddr = firstDataSection.Addr
+				progHeader.Filesz = allDataFilesz
+				progHeader.Memsz = allDataMemsz
 			}
 		}
 	}
