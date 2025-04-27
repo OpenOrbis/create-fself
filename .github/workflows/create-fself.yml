@@ -12,10 +12,10 @@ jobs:
     name: create-fself
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v5
       with:
         go-version: 1.17
     
@@ -39,19 +39,19 @@ jobs:
         GOOS=darwin go build -o ../../build/create-fself-macos -modfile=go-linux.mod
 
     - name: Upload windows version
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: create-fself.exe
         path: build/create-fself.exe
 
     - name: Upload linux version
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: create-fself
         path: build/create-fself
 
     - name: Upload macOS version
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: create-fself-macos
         path: build/create-fself-macos
