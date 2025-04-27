@@ -153,6 +153,11 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 		return err
 	}
 
+	// convert absolute paths to library's file names
+	for i := range libraries {
+		libraries[i] = filepath.Base(libraries[i])
+	}
+
 	// Swap libkernel with the first library to ensure it comes before anything else
 	for i, library := range libraries {
 		if library == "libkernel.so" {

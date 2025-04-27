@@ -6,9 +6,28 @@ import (
 	"encoding/binary"
 	"math"
 	"sort"
+	"strings"
 )
 
 type programHeaderList []*elf.Prog
+
+func getFirstRwDataSection(e *elf.File) *elf.Section {
+	for _, s := range e.Sections {
+		if strings.HasPrefix(s.Name, ".data") && s.Name != ".data.rel.ro" {
+			return s
+		}
+	}
+	return nil
+}
+func getLastRwDataSection(e *elf.File) *elf.Section {
+	for i := len(e.Sections) - 1; i >= 0; i-- {
+		s := e.Sections[i]
+		if strings.HasPrefix(s.Name, ".data") && s.Name != ".data.rel.ro" {
+			return s
+		}
+	}
+	return nil
+}
 
 // GenerateProgramHeaders parses the input ELF's section header table to generate updated program headers.
 // Returns nil.
@@ -17,16 +36,24 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 	// TODO: Verify these sections exist in OrbisElf.ValidateInputELF()
 	textSection := orbisElf.ElfToConvert.Section(".text")
 	relroSection := orbisElf.ElfToConvert.Section(".data.rel.ro")
-	dataSection := orbisElf.ElfToConvert.Section(".data")
-	bssSection := orbisElf.ElfToConvert.Section(".bss")
 	procParamSection := orbisElf.ElfToConvert.Section(".data.sce_process_param")
+	bssSection := orbisElf.ElfToConvert.Section(".bss")
 
+	firstDataSection := getFirstRwDataSection(orbisElf.ElfToConvert)
+	lastDataSection := getLastRwDataSection(orbisElf.ElfToConvert)
+	allDataFilesz := (lastDataSection.Offset - firstDataSection.Offset) + lastDataSection.Size
+	allDataMemsz := (lastDataSection.Addr - firstDataSection.Addr) + lastDataSection.Size
+
+	if bssSection != nil {
+		allDataMemsz += align(bssSection.Size, 16);
+	}
 	if orbisElf.IsLibrary {
 		procParamSection = orbisElf.ElfToConvert.Section(".data.sce_module_param")
 	}
 
 	// Get GNU_RELRO header pre-emptively (we'll need to check it to eliminate duplicate PT_LOAD headers)
 	gnuRelroSegment := orbisElf.getProgramHeader(elf.PT_GNU_RELRO, elf.PF_R)
+	relroAlignedMemsz := align(gnuRelroSegment.Memsz, 0x4000);
 
 	// First pass: drop program headers that we don't need and copy all others
 	for _, progHeader := range orbisElf.ElfToConvert.Progs {
@@ -38,8 +65,8 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 		// PT_LOAD for relro will be handled by SCE_RELRO, we can get rid of it
 		if gnuRelroSegment != nil {
 			if progHeader.Type == elf.PT_LOAD && progHeader.Off == gnuRelroSegment.Off {
-				if progHeader.Memsz > (gnuRelroSegment.Memsz+0x3fff) & ^uint64(0x4000) {
-					subtractSize := (gnuRelroSegment.Memsz + 0x3fff) & ^uint64(0x4000)
+				if progHeader.Memsz > relroAlignedMemsz {
+					subtractSize := relroAlignedMemsz
 					progHeader.Off += subtractSize
 					progHeader.Vaddr += subtractSize
 					progHeader.Paddr = 0
@@ -88,7 +115,7 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 
 			// We need to fill the hole between the SCE_RELRO segment and the PT_LOAD segment for .data. Since
 			// .data.sce_process_param should be the first thing in the data segment, we can use this to calculate.
-			expandedSize := procParamSection.Offset - progHeader.Off
+			expandedSize := firstDataSection.Offset - progHeader.Off
 			progHeader.Filesz = expandedSize
 			progHeader.Memsz = expandedSize
 			progHeader.Align = 0x4000
@@ -109,23 +136,13 @@ func (orbisElf *OrbisElf) GenerateProgramHeaders() error {
 				}
 			}
 
-			// PT_LOAD for data needs to be shifted to contain SCE specific data
+			// PT_LOAD for read-write data must contain SCE specific data and any read-write `.data` sections
 			if progHeader.Flags == (elf.PF_R | elf.PF_W) {
-				// We'll get the size by subtracting the proc param offset from data's offset so we get padding for free, which the
-				// header size will not provide.
-				dataSize := (dataSection.Offset - procParamSection.Offset) + dataSection.Size
-				dataMemSize := (dataSection.Addr - procParamSection.Addr) + dataSection.Size
-
-				// Also check for .bss - if it exists, factor it into the size
-				if bssSection != nil {
-					dataMemSize += (bssSection.Addr - (dataSection.Addr + dataSection.Size)) + bssSection.Size
-				}
-
-				progHeader.Off = procParamSection.Offset
-				progHeader.Vaddr = procParamSection.Addr
-				progHeader.Paddr = procParamSection.Addr
-				progHeader.Filesz = dataSize
-				progHeader.Memsz = dataMemSize
+				progHeader.Off = firstDataSection.Offset
+				progHeader.Vaddr = firstDataSection.Addr
+				progHeader.Paddr = firstDataSection.Addr
+				progHeader.Filesz = allDataFilesz
+				progHeader.Memsz = allDataMemsz
 			}
 		}
 	}
@@ -297,4 +314,9 @@ func (s programHeaderList) Swap(i int, j int) {
 // Less uses the getProgramHeaderPriority() function to sort the list by priority.
 func (s programHeaderList) Less(i int, j int) bool {
 	return getProgramHeaderPriority(progHeaderTypeOrder, s[i].ProgHeader.Type, s[i].ProgHeader.Flags) < getProgramHeaderPriority(progHeaderTypeOrder, s[j].Type, s[j].Flags)
+}
+
+// align takes a given int and aligns it to a given value. Returns the aligned value.
+func align(val uint64, align uint64) uint64 {
+	return (val + (align - 1)) & ^(align - 1)
 }
