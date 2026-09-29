@@ -94,7 +94,7 @@ var _moduleToLibDictionary = map[string]string{
 }
 
 var (
-	_libraryOffsets []uint64
+	_libraryOffsets         []uint64
 	_importedLibraryOffsets []uint64
 	_importedModuleOffsets  []uint64
 
@@ -196,14 +196,13 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 		// Add it to the dictionary
 		purifiedLibrary := strings.Replace(library, ".so", "", 1)
 		orbisElf.LibrarySymbolDictionary.Set(purifiedLibrary, []string{})
-		
 
 		// Assume module name is the library name
 		moduleName := purifiedLibrary
 		// Check if it is a weird library hidden inside a module
 		if mn, ok := _extraLibraryToModule[purifiedLibrary]; ok {
 			moduleName = mn
-		} 
+		}
 
 		// Prevent duplicate entries
 		if !contains(orbisElf.ModuleList, moduleName) {
@@ -218,7 +217,6 @@ func (orbisElf *OrbisElf) GenerateLibrarySymbolDictionary(sdkPath string, libPat
 	for _, module := range orbisElf.ModuleList {
 		rolsd.Set(module, []string{})
 	}
-
 
 	for _, library := range orbisElf.LibrarySymbolDictionary.Keys() {
 		libNa := library.(string)
@@ -424,7 +422,6 @@ func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, 
 		moduleTableBuff.WriteString(libName)
 	}
 
-
 	// Write module list
 	for _, module := range moduleList {
 		moduleStr := strings.Replace(module, "_stub", "", 1)
@@ -432,7 +429,6 @@ func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, 
 		// Record the offset of the library for processing later
 		moduleName := moduleStr + "\x00"
 		moduleOffset := uint64(len(moduleTableBuff.Bytes())) + 1
-
 
 		_importedModuleOffsets = append(_importedModuleOffsets, moduleOffset)
 
@@ -446,7 +442,7 @@ func writeModuleTable(moduleList []string, librarySymbolDictionary *OrderedMap, 
 	for _, library := range libraries {
 		libraryStr := library.(string)
 		libraryStr = strings.Replace(libraryStr, "stub", "", 1)
-		
+
 		if contains(moduleList, libraryStr) {
 			continue
 		}
@@ -539,7 +535,6 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 		libraryName := ""
 		moduleName := ""
 
-
 		// Skip symbols that have a valid section index - they're defined in the ELF and are not external
 		if symbol.Section != elf.SHN_UNDEF {
 			continue
@@ -555,8 +550,14 @@ func writeNIDTable(orbisElf *OrbisElf, segmentData *[]byte) (uint64, error) {
 			}
 		}
 
-
 		if symbolLibraryIndex < 0 {
+			// allow weak symbols to have no reference,
+			// this will make their value zero
+			if elf.ST_BIND(symbol.Info) == elf.STB_WEAK {
+				nidTableBuff.WriteString(symbol.Name)
+				continue
+			}
+
 			return 0, errors.New(fmt.Sprintf("missing library for symbol (%s)", symbol.Name))
 		}
 
